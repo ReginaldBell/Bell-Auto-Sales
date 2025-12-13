@@ -19,19 +19,34 @@ const PORT = process.env.PORT || 8080;
 const NODE_ENV = process.env.NODE_ENV || "development";
 const isProduction = NODE_ENV === "production";
 
-// Admin password from environment (REQUIRED in production)
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (isProduction ? null : "bell1234");
-if (!ADMIN_PASSWORD) {
+// Admin password from environment (REQUIRED in production, no fallback)
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+if (isProduction && !ADMIN_PASSWORD) {
   console.error("FATAL: ADMIN_PASSWORD environment variable is required in production");
   process.exit(1);
 }
+if (!ADMIN_PASSWORD && !isProduction) {
+  console.warn("WARNING: ADMIN_PASSWORD not set, using insecure default for development only");
+}
+const EFFECTIVE_ADMIN_PASSWORD = ADMIN_PASSWORD || "bell1234"; // Dev-only fallback
 
-// Session secret (generate secure one in production)
-const SESSION_SECRET = process.env.SESSION_SECRET || 
-  (isProduction ? null : crypto.randomBytes(32).toString("hex"));
-if (!SESSION_SECRET && isProduction) {
+// Session secret (REQUIRED in production)
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (isProduction && !SESSION_SECRET) {
   console.error("FATAL: SESSION_SECRET environment variable is required in production");
   process.exit(1);
+}
+const EFFECTIVE_SESSION_SECRET = SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+
+/* ======================
+   Data Directory (Persistent Storage)
+====================== */
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+if (DATA_DIR !== __dirname) {
+  console.log(`Using persistent data directory: ${DATA_DIR}`);
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
 }
 
 /* ======================
@@ -174,7 +189,7 @@ async function sendContactEmail(lead) {
 /* ======================
    Uploads Directory
 ====================== */
-const uploadsDir = path.join(__dirname, "uploads");
+const uploadsDir = path.join(DATA_DIR, "uploads");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -284,13 +299,13 @@ app.use(cors(corsOptions));
 ====================== */
 const sessionStore = new SQLiteStore({
   db: "sessions.db",
-  dir: __dirname,
+  dir: DATA_DIR,
   table: "sessions"
 });
 
 app.use(session({
   store: sessionStore,
-  secret: SESSION_SECRET,
+  secret: EFFECTIVE_SESSION_SECRET,
   name: "bell_sid", // Custom name (not 'connect.sid')
   resave: false,
   saveUninitialized: false,
@@ -307,7 +322,7 @@ app.use(session({
    CSRF Protection
 ====================== */
 const { doubleCsrfProtection, generateToken } = doubleCsrf({
-  getSecret: () => SESSION_SECRET,
+  getSecret: () => EFFECTIVE_SESSION_SECRET,
   cookieName: isProduction ? "__Host-csrf" : "csrf",
   cookieOptions: {
     httpOnly: true,
@@ -465,7 +480,7 @@ app.use("/uploads", express.static(uploadsDir));
 /* ======================
    Database Setup
 ====================== */
-const dbPath = path.join(__dirname, "cars.db");
+const dbPath = path.join(DATA_DIR, "cars.db");
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error("Failed to connect to SQLite:", err);
@@ -565,7 +580,7 @@ app.post("/api/admin/login", loginLimiter, (req, res) => {
 
   // Constant-time comparison to prevent timing attacks
   const passwordBuffer = Buffer.from(password || "");
-  const adminBuffer = Buffer.from(ADMIN_PASSWORD);
+  const adminBuffer = Buffer.from(EFFECTIVE_ADMIN_PASSWORD);
   
   // Ensure buffers are same length for comparison
   const isValid = passwordBuffer.length === adminBuffer.length && 
