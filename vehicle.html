@@ -3,12 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Vehicle Details - B &amp; S Auto Sales">
-  <title>Vehicle Details - B &amp; S Auto Sales</title>
+  <meta name="description" content="View vehicle details and specifications at B &amp; S Auto Sales. Quality used cars serving East Texas, including Mineola and surrounding communities.">
+  <title>Vehicle Details | B &amp; S Auto Sales - East Texas</title>
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://example.com/vehicle.html">
+  <meta property="og:title" content="Vehicle Details | B &amp; S Auto Sales">
+  <meta property="og:description" content="View vehicle details at B &amp; S Auto Sales. Quality used cars, trucks, and SUVs in East Texas.">
+  <meta property="og:image" content="https://example.com/unnamed.png">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" href="unnamed.png">
   <style>
     /* Vehicle Detail Page Specific Styles */
     .breadcrumb {
@@ -116,6 +125,11 @@
     .vehicle-status.sold {
       background-color: #fee2e2;
       color: #991b1b;
+    }
+
+    .vehicle-status.pending {
+      background-color: rgba(251, 191, 36, 0.95);
+      color: #1f2937;
     }
 
     .vehicle-price {
@@ -243,6 +257,7 @@
     .vehicle-cta-button {
       width: auto;
       min-width: 280px;
+      min-height: 48px;
       margin-bottom: var(--spacing-md);
     }
 
@@ -257,13 +272,60 @@
       border-top: 1px solid var(--color-border);
     }
 
+    .vehicle-contact-info span {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .vehicle-contact-info a {
       color: var(--color-primary-red);
       text-decoration: none;
+      padding: 0.25rem 0;
     }
 
     .vehicle-contact-info a:hover {
       text-decoration: underline;
+    }
+
+    /* Mobile-first: Small screens */
+    @media (max-width: 480px) {
+      .vehicle-title {
+        font-size: var(--font-size-xl);
+      }
+      
+      .vehicle-price {
+        font-size: var(--font-size-2xl);
+      }
+      
+      .vehicle-specs {
+        padding: var(--spacing-md);
+      }
+      
+      .vehicle-cta-box {
+        padding: var(--spacing-md);
+      }
+      
+      .vehicle-cta-title {
+        font-size: var(--font-size-xl);
+      }
+      
+      .vehicle-cta-button {
+        width: 100%;
+        min-width: unset;
+      }
+      
+      .vehicle-thumbnails {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+      }
+      
+      .breadcrumb-link {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+      }
     }
 
     @media (min-width: 640px) {
@@ -326,7 +388,7 @@
   <div class="breadcrumb">
     <div class="container">
       <a href="index.html#inventory" class="breadcrumb-link">
-        ← Back to Inventory
+        ← Back to All Vehicles
       </a>
     </div>
   </div>
@@ -374,7 +436,7 @@
 
           <!-- Key Specs -->
           <div class="vehicle-specs">
-            <h2 class="vehicle-specs-title">Key Specifications</h2>
+            <h2 class="vehicle-specs-title">At a Glance</h2>
             <div id="vehicle-specs" class="specs-grid">
               <div class="spec-item">
                 <span class="spec-label">Year</span>
@@ -422,13 +484,13 @@
   <!-- Vehicle Overview & Features -->
   <section class="vehicle-section">
     <div class="container">
-      <h2 class="vehicle-section-title">Vehicle Overview</h2>
+      <h2 class="vehicle-section-title">About This Vehicle</h2>
       <div id="vehicle-description" class="vehicle-description">
         <p>This 2020 Honda Accord EX is an exceptional value offering reliability, comfort, and modern technology. With only 45,000 miles on the odometer, this sedan has been meticulously maintained and is ready for its next owner. The Accord is known for its excellent fuel economy, spacious interior, and smooth ride quality, making it perfect for both city commuting and highway cruising.</p>
         <p>The EX trim comes well-equipped with premium features including a touchscreen infotainment system with Apple CarPlay and Android Auto, power moonroof, dual-zone automatic climate control, and Honda Sensing safety suite. The turbocharged engine provides excellent performance while maintaining impressive fuel efficiency.</p>
       </div>
 
-      <h3 class="vehicle-section-title">Key Features</h3>
+      <h3 class="vehicle-section-title">What's Included</h3>
       <ul id="vehicle-features" class="vehicle-features">
         <li>Apple CarPlay & Android Auto Integration</li>
         <li>Honda Sensing Safety Suite (Collision Mitigation, Lane Keep Assist, Adaptive Cruise Control)</li>
@@ -450,18 +512,18 @@
   <section class="vehicle-cta-section">
     <div class="container">
       <div class="vehicle-cta-box">
-        <h2 class="vehicle-cta-title">I'm Interested in This Vehicle</h2>
-        <p class="vehicle-cta-text">Have questions or want to schedule a test drive? Get in touch with us today and we'll help you get behind the wheel.</p>
+        <h2 class="vehicle-cta-title">Interested? Let's Talk</h2>
+        <p class="vehicle-cta-text">Have questions or want to take it for a spin? Reach out—we're happy to help.</p>
         <a 
           href="index.html#contact" 
           class="btn btn-primary vehicle-cta-button" 
           data-vehicle-title="2020 Honda Accord EX"
         >
-          Contact About This Vehicle
+          Ask About This Vehicle
         </a>
         <div class="vehicle-contact-info">
-          <span>📞 Call us: <a href="tel:5551234567">(555) 123-4567</a></span>
-          <span>✉️ Email: <a href="mailto:info@bellautosales.com">info@bellautosales.com</a></span>
+          <span>📞 Call us: <a href="tel:+12144518037">(214) 451-8037</a></span>
+          <span>✉️ Email: <a href="mailto:bellboys08@yahoo.com">bellboys08@yahoo.com</a></span>
         </div>
       </div>
     </div>
@@ -473,14 +535,14 @@
       <div class="footer-content">
         <div class="footer-section">
           <h3>B &amp; S Auto Sales</h3>
-          <p>Your trusted source for quality used vehicles with simple financing options.</p>
+          <p>Good cars, fair deals, and real people you can talk to. Serving East Texas.</p>
         </div>
         
         <div class="footer-section">
           <h3>Contact Info</h3>
-          <p>📍 123 Main Street, Anytown, USA</p>
-          <p>📞 (555) 123-4567</p>
-          <p>✉️ info@bellautosales.com</p>
+          <p>📍 East Texas (Mineola, TX)</p>
+          <p>📞 (214) 451-8037</p>
+          <p>✉️ bellboys08@yahoo.com</p>
         </div>
         
         <div class="footer-section">

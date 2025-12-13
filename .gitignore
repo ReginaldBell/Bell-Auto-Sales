@@ -10,8 +10,8 @@ node_modules/
 # Database backups
 backups/
 
-# Uploaded files (optional - uncomment if you want to exclude)
-# uploads/
+# Uploaded files (user data - don't commit to repo)
+uploads/
 
 # Environment variables
 .env

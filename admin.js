@@ -1,6 +1,6 @@
 // ============================================================================
 // Admin Dashboard JavaScript (API + SQLite Version)
-// Fixed: payload/schema alignment + prevent HTTP 413 by NOT embedding base64 images
+// Secure authentication with session cookies and CSRF protection
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     cars: [],
     isLoggedIn: false,
     editingCarId: null,
+    csrfToken: null, // CSRF token from server
 
     // Detected API/DB shape from GET /api/vehicles (first row)
     apiKeys: null,              // Set<string>
@@ -21,25 +22,96 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------------------------------
   // API helpers
   // ----------------------------------------------------------------------------
-  const API_BASE = ''; // keep relative so ngrok works
+  // Use current origin for reliable same-origin requests (works with proxies, ngrok, etc.)
+  const API_BASE = window.location.origin;
   const API = {
     list: () => `${API_BASE}/api/vehicles`,
     one: (id) => `${API_BASE}/api/vehicles/${encodeURIComponent(id)}`,
+    login: () => `${API_BASE}/api/admin/login`,
+    logout: () => `${API_BASE}/api/admin/logout`,
+    session: () => `${API_BASE}/api/admin/session`,
+    csrfToken: () => `${API_BASE}/api/admin/csrf-token`
   };
 
-  async function requestJson(url, options = {}) {
+  /**
+   * Fetch CSRF token from server (required before mutations)
+   */
+  async function fetchCsrfToken() {
+    try {
+      const res = await fetch(API.csrfToken(), { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        AdminState.csrfToken = data.csrfToken;
+        return data.csrfToken;
+      }
+    } catch (err) {
+      console.error('Failed to fetch CSRF token:', err);
+    }
+    return null;
+  }
+
+  /**
+   * Make authenticated request with CSRF token
+   */
+  async function authRequest(url, options = {}) {
+    // Ensure we have a CSRF token for mutations
+    if (['POST', 'PUT', 'DELETE'].includes(options.method?.toUpperCase())) {
+      if (!AdminState.csrfToken) {
+        await fetchCsrfToken();
+      }
+    }
+
+    const headers = {
+      ...(options.headers || {}),
+    };
+
+    // Add CSRF token header for mutations (unless it's FormData)
+    if (AdminState.csrfToken && ['POST', 'PUT', 'DELETE'].includes(options.method?.toUpperCase())) {
+      headers['X-CSRF-Token'] = AdminState.csrfToken;
+    }
+
     const res = await fetch(url, {
-      headers: {
-        ...(options.headers || {}),
-      },
       ...options,
+      headers,
+      credentials: 'include' // Always send cookies
     });
+
+    // Handle auth errors
+    if (res.status === 401) {
+      AdminState.isLoggedIn = false;
+      AdminState.csrfToken = null;
+      showLoginScreen();
+      throw new Error('Session expired. Please log in again.');
+    }
+
+    // Handle CSRF errors - refresh token and retry once
+    if (res.status === 403) {
+      const text = await res.text();
+      if (text.includes('CSRF') || text.includes('csrf')) {
+        await fetchCsrfToken();
+        // Retry once with new token
+        headers['X-CSRF-Token'] = AdminState.csrfToken;
+        const retryRes = await fetch(url, { ...options, headers, credentials: 'include' });
+        if (!retryRes.ok) {
+          const retryText = await retryRes.text();
+          throw new Error(`HTTP ${retryRes.status}: ${retryText}`);
+        }
+        return retryRes;
+      }
+      throw new Error(`HTTP 403: ${text}`);
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
     }
 
+    return res;
+  }
+
+  async function requestJson(url, options = {}) {
+    const res = await authRequest(url, options);
+    
     const ct = res.headers.get('content-type') || '';
     if (ct.includes('application/json')) return res.json();
     const text = await res.text().catch(() => '');
@@ -259,24 +331,128 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------------------------------
   // Login handling
   // ----------------------------------------------------------------------------
-  function handleLoginFormSubmit(e) {
+  function showLoginScreen() {
+    if (loginScreen && loginScreen.style) loginScreen.style.display = 'flex';
+    if (adminDashboard && adminDashboard.style) adminDashboard.style.display = 'none';
+  }
+
+  function showDashboard() {
+    if (loginScreen && loginScreen.style) loginScreen.style.display = 'none';
+    if (adminDashboard && adminDashboard.style) adminDashboard.style.display = 'block';
+  }
+
+  async function handleLoginFormSubmit(e) {
     e.preventDefault();
     if (!loginForm) return;
 
-    const usernameInput = loginForm.querySelector('#login-email');
     const passwordInput = loginForm.querySelector('#login-password');
-    const username = usernameInput ? usernameInput.value.trim() : '';
     const password = passwordInput ? passwordInput.value : '';
 
-    if (username === 'owner' && password === 'bell1234') {
-      AdminState.isLoggedIn = true;
-      loginError.textContent = '';
-      if (loginScreen && loginScreen.style) loginScreen.style.display = 'none';
-      if (adminDashboard && adminDashboard.style) adminDashboard.style.display = 'block';
-      fetchCarsAndRender();
-    } else {
-      loginError.textContent = 'Invalid username or password';
+    if (!password) {
+      loginError.textContent = 'Please enter the admin password';
+      return;
     }
+
+    try {
+      loginError.textContent = 'Logging in...';
+      
+      const res = await fetch(API.login(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+        credentials: 'include'
+      });
+
+      // Handle rate limiting (429)
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        loginError.textContent = data.error || 'Too many login attempts. Please wait and try again.';
+        console.warn('[Auth] Rate limit exceeded');
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Specific error messages based on status
+        if (res.status === 401) {
+          loginError.textContent = data.error || 'Invalid password';
+          console.warn('[Auth] Invalid password attempt');
+        } else if (res.status === 500) {
+          loginError.textContent = 'Server error. Please try again later.';
+          console.error('[Auth] Server error:', data);
+        } else {
+          loginError.textContent = data.error || 'Login failed';
+          console.error('[Auth] Unexpected error:', res.status, data);
+        }
+        return;
+      }
+
+      // Login successful
+      console.log('[Auth] Login successful');
+      AdminState.isLoggedIn = true;
+      AdminState.csrfToken = data.csrfToken;
+      loginError.textContent = '';
+      
+      // Clear password field
+      if (passwordInput) passwordInput.value = '';
+      
+      showDashboard();
+      fetchCarsAndRender();
+    } catch (err) {
+      console.error('[Auth] Login network error:', err);
+      // Distinguish between network errors and other issues
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        loginError.textContent = 'Cannot connect to server. Is it running on port 8080?';
+      } else {
+        loginError.textContent = 'Login failed. Check your connection.';
+      }
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch(API.logout(), {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+    
+    AdminState.isLoggedIn = false;
+    AdminState.csrfToken = null;
+    AdminState.cars = [];
+    showLoginScreen();
+  }
+
+  // Check for existing session on page load
+  async function checkExistingSession() {
+    try {
+      console.log('[Auth] Checking existing session...');
+      const res = await fetch(API.session(), { credentials: 'include' });
+      
+      if (!res.ok) {
+        console.warn('[Auth] Session check returned:', res.status);
+        return false;
+      }
+      
+      const data = await res.json();
+      
+      if (data.authenticated) {
+        console.log('[Auth] Existing session found, restoring...');
+        AdminState.isLoggedIn = true;
+        // Fetch CSRF token for the existing session
+        await fetchCsrfToken();
+        showDashboard();
+        fetchCarsAndRender();
+        return true;
+      }
+      console.log('[Auth] No active session');
+    } catch (err) {
+      console.error('[Auth] Session check failed:', err);
+    }
+    return false;
   }
 
   if (loginForm) loginForm.addEventListener('submit', handleLoginFormSubmit);
@@ -431,12 +607,42 @@ document.addEventListener('DOMContentLoaded', () => {
       const url = AdminState.editingCarId ? API.one(AdminState.editingCarId) : API.list();
       const method = AdminState.editingCarId ? 'PUT' : 'POST';
 
+      // Ensure we have a CSRF token
+      if (!AdminState.csrfToken) {
+        await fetchCsrfToken();
+      }
+
       const res = await fetch(url, {
         method,
-        body: formData  // Do NOT set Content-Type header; browser sets it with boundary
+        headers: {
+          'X-CSRF-Token': AdminState.csrfToken || ''
+        },
+        body: formData,  // Do NOT set Content-Type header; browser sets it with boundary
+        credentials: 'include'
       });
 
-      if (!res.ok) {
+      // Handle auth/CSRF errors
+      if (res.status === 401) {
+        AdminState.isLoggedIn = false;
+        showLoginScreen();
+        alert('Session expired. Please log in again.');
+        return;
+      }
+
+      if (res.status === 403) {
+        // Might be CSRF error - refresh token and retry
+        await fetchCsrfToken();
+        const retryRes = await fetch(url, {
+          method,
+          headers: { 'X-CSRF-Token': AdminState.csrfToken || '' },
+          body: formData,
+          credentials: 'include'
+        });
+        if (!retryRes.ok) {
+          const text = await retryRes.text();
+          throw new Error(`HTTP ${retryRes.status}: ${text}`);
+        }
+      } else if (!res.ok) {
         const text = await res.text().catch(() => '');
         throw new Error(`HTTP ${res.status}: ${text}`);
       }
@@ -445,7 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
       resetForm();
     } catch (err) {
       console.error('Save failed:', err);
-      alert('Failed to save vehicle. Check server logs/terminal for details.');
+      alert('Failed to save vehicle. ' + err.message);
     }
   }
 
@@ -698,16 +904,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------------------------------
   // App init
   // ----------------------------------------------------------------------------
-  function init() {
+  async function init() {
     setupLivePreview();
 
-    if (AdminState.isLoggedIn) {
-      if (loginScreen && loginScreen.style) loginScreen.style.display = 'none';
-      if (adminDashboard && adminDashboard.style) adminDashboard.style.display = 'block';
-      fetchCarsAndRender();
-    } else {
-      if (loginScreen && loginScreen.style) loginScreen.style.display = '';
-      if (adminDashboard && adminDashboard.style) adminDashboard.style.display = 'none';
+    // Add logout button handler
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', handleLogout);
+    }
+
+    // Check for existing session first
+    const hasSession = await checkExistingSession();
+    
+    if (!hasSession) {
+      showLoginScreen();
     }
   }
 

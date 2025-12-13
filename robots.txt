@@ -1,0 +1,11 @@
+# robots.txt for B & S Auto Sales
+# https://example.com/robots.txt
+
+User-agent: *
+Allow: /
+
+# Block admin pages from indexing
+Disallow: /admin.html
+
+# Sitemap location
+Sitemap: https://example.com/sitemap.xml

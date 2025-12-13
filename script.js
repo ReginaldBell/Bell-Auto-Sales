@@ -1,5 +1,5 @@
 /* ==============================
-   HOMEPAGE INVENTORY + UI + CALCULATOR
+   HOMEPAGE INVENTORY + UI
    B & S Auto Sales
    ============================== */
 
@@ -82,6 +82,17 @@
     return num.toLocaleString('en-US') + ' mi';
   }
 
+  /**
+   * Strip price-like tokens from a string (e.g., "5999", "$5,999")
+   * Used to sanitize model/trim fields that may accidentally contain prices
+   */
+  function stripPriceLikeTokens(str) {
+    if (!str) return '';
+    // Remove $XXX patterns and standalone 4-6 digit numbers (likely prices)
+    // Preserves model numbers like "F-150", "RX 350" (3 digits or hyphenated)
+    return str.replace(/\$[\d,]+|\b\d{4,6}\b/g, '').replace(/\s+/g, ' ').trim();
+  }
+
   function clampNumber(n, min, max) {
     const num = Number(n);
     if (isNaN(num)) return min;
@@ -89,13 +100,29 @@
   }
 
   /* ---------- card builder ---------- */
+  /**
+   * STATUS BEHAVIOR: All vehicles are shown regardless of status.
+   * Sold vehicles are clearly marked with a red "SOLD" badge.
+   * Pending vehicles show a yellow "PENDING" badge.
+   * Available vehicles show a green "AVAILABLE" badge.
+   */
   function createCard(car) {
     const card = document.createElement('div');
     card.className = 'vehicle-card car-card';
     card.dataset.carId = car.id;
 
-    const statusClass = car.status === 'sold' ? 'badge-sold' : 'badge-available';
-    const statusText = car.status === 'sold' ? 'Sold' : 'Available';
+    // Determine status badge class and text
+    const status = (car.status || 'available').toLowerCase();
+    let statusClass = 'badge-available';
+    let statusText = 'Available';
+    
+    if (status === 'sold') {
+      statusClass = 'badge-sold';
+      statusText = 'Sold';
+    } else if (status === 'pending') {
+      statusClass = 'badge-pending';
+      statusText = 'Pending';
+    }
 
     card.innerHTML = `
       <div class="vehicle-image-container car-image-wrap car-image-inner">
@@ -125,9 +152,9 @@
             <span>${car.transmission || 'Auto'}</span>
           </span>
         </div>
-        <h3 class="vehicle-title car-title">${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</h3>
+        <h3 class="vehicle-title car-title">${car.year} ${stripPriceLikeTokens(car.make)} ${stripPriceLikeTokens(car.model)}${car.trim ? ' ' + stripPriceLikeTokens(car.trim) : ''}</h3>
         <div class="vehicle-price car-price">${formatPrice(car.price)}</div>
-        <p class="vehicle-description car-description">${car.description || 'Quality pre-owned vehicle. Contact us for more details.'}</p>
+        <p class="vehicle-description car-description">${car.description || 'Well-maintained vehicle ready for its next owner. Reach out for details.'}</p>
         <div class="vehicle-specs-mini car-mini-specs">
           <div class="spec-mini-item">
             <span class="spec-mini-label">Engine</span>
@@ -147,11 +174,11 @@
           </div>
         </div>
         <div class="vehicle-actions car-action">
-          <a href="vehicle.html?id=${car.id}" class="btn btn-primary">View Details</a>
+          <a href="vehicle.html?id=${car.id}" class="btn btn-primary">See Full Details</a>
           <button class="btn btn-secondary btn-icon" aria-label="Quick view" data-car-id="${car.id}">👁️</button>
         </div>
         <div class="dealer-badge">
-          Verified by B &amp; S Auto Sales
+          Listed by B &amp; S Auto Sales
         </div>
       </div>
     `;
@@ -178,8 +205,8 @@
     if (cars.length === 0) {
       grid.innerHTML = `
         <div class="no-inventory" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
-          <h3>No vehicles in inventory</h3>
-          <p>Check back soon for new arrivals!</p>
+          <h3>No vehicles right now</h3>
+          <p>We're always adding new arrivals—check back soon!</p>
         </div>
       `;
       return;
@@ -234,7 +261,7 @@
         <div class="modal-body">
           <img src="${getPrimaryImage(car)}" alt="${car.year} ${car.make} ${car.model}" class="modal-image">
           <div class="modal-details">
-            <h2>${car.year} ${car.make} ${car.model}${car.trim ? ' ' + car.trim : ''}</h2>
+            <h2>${car.year} ${stripPriceLikeTokens(car.make)} ${stripPriceLikeTokens(car.model)}${car.trim ? ' ' + stripPriceLikeTokens(car.trim) : ''}</h2>
             <p class="modal-price">${formatPrice(car.price)}</p>
             <p class="modal-mileage">${formatMileage(car.mileage)}</p>
             <p class="modal-description">${car.description || 'Contact us for more details.'}</p>
@@ -289,78 +316,145 @@
     });
   }
 
-  /* ---------- financing calculator ---------- */
-  function setupFinancingCalculator() {
-    const priceEl = document.getElementById('calc-price');
-    const downEl = document.getElementById('calc-down');
-    const rateEl = document.getElementById('calc-rate');
-    const termEl = document.getElementById('calc-term');
-    const btnEl = document.getElementById('calc-button');
+  /* ---------- contact form ---------- */
+  function setupContactForm() {
+    const form = document.getElementById('contact-form');
+    if (!form) return;
 
-    const outPayment = document.getElementById('result-payment');
-    const outLoan = document.getElementById('result-loan');
-    const outApr = document.getElementById('result-apr');
-    const outTerm = document.getElementById('result-term');
-    const outInterest = document.getElementById('result-interest');
-    const outTotal = document.getElementById('result-total');
+    const submitBtn = document.getElementById('contact-submit');
+    const feedback = document.getElementById('contact-feedback');
+    const vehicleSelect = document.getElementById('car-interest');
 
-    if (!priceEl || !downEl || !rateEl || !termEl || !btnEl) return;
-    if (!outPayment || !outLoan || !outApr || !outTerm || !outInterest || !outTotal) return;
+    // Populate vehicle dropdown with current inventory
+    populateVehicleDropdown();
 
-    function money(n) {
-      const num = Number(n);
-      if (!isFinite(num)) return '$0';
-      return '$' + num.toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
-    }
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
 
-    function compute() {
-      const price = Math.max(0, Number(priceEl.value) || 0);
-      const down = Math.max(0, Number(downEl.value) || 0);
-      const apr = clampNumber(rateEl.value, 0, 30);
-      const termMonths = Math.max(1, Number(termEl.value) || 60);
+      // Disable button and show loading state
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Sending...';
+      }
+      hideFeedback();
 
-      const loan = Math.max(0, price - down);
+      // Gather form data
+      const formData = new FormData(form);
+      const name = (formData.get('name') || '').toString().trim();
+      const phone = (formData.get('phone') || '').toString().trim();
+      const message = (formData.get('message') || '').toString().trim();
+      const website = (formData.get('website') || '').toString(); // honeypot
+      const vehicleValue = (formData.get('car-interest') || '').toString();
 
-      // Monthly interest rate
-      const r = (apr / 100) / 12;
-
-      let payment = 0;
-      let totalPaid = 0;
-      let totalInterest = 0;
-
-      if (loan === 0) {
-        payment = 0;
-        totalPaid = 0;
-        totalInterest = 0;
-      } else if (r === 0) {
-        payment = loan / termMonths;
-        totalPaid = payment * termMonths;
-        totalInterest = totalPaid - loan;
-      } else {
-        // amortization: P = L * r(1+r)^n / ((1+r)^n - 1)
-        const pow = Math.pow(1 + r, termMonths);
-        payment = loan * (r * pow) / (pow - 1);
-        totalPaid = payment * termMonths;
-        totalInterest = totalPaid - loan;
+      // Parse vehicle selection (format: "id|title" or just "General Inquiry")
+      let vehicleId = null;
+      let vehicleTitle = '';
+      if (vehicleValue && vehicleValue !== 'General Inquiry') {
+        const parts = vehicleValue.split('|');
+        if (parts.length === 2) {
+          vehicleId = parseInt(parts[0], 10) || null;
+          vehicleTitle = parts[1];
+        } else {
+          vehicleTitle = vehicleValue;
+        }
+      } else if (vehicleValue === 'General Inquiry') {
+        vehicleTitle = 'General Inquiry';
       }
 
-      outPayment.textContent = money(payment);
-      outLoan.textContent = money(loan);
-      outApr.textContent = `${apr.toFixed(1)}%`;
-      outTerm.textContent = `${termMonths} months`;
-      outInterest.textContent = money(totalInterest);
-      outTotal.textContent = money(totalPaid);
-    }
+      // Client-side validation
+      if (!name || !phone || !message) {
+        showFeedback('Please fill in all required fields.', 'error');
+        resetButton();
+        return;
+      }
 
-    btnEl.addEventListener('click', compute);
+      // Basic phone validation (digits, spaces, dashes, parens, plus, dots)
+      const phoneClean = phone.replace(/[\s\-().+]/g, '');
+      if (phoneClean.length < 7 || !/^\d+$/.test(phoneClean)) {
+        showFeedback('Please enter a valid phone number.', 'error');
+        resetButton();
+        return;
+      }
 
-    // Live updates (keeps it feeling modern)
-    [priceEl, downEl, rateEl, termEl].forEach(el => {
-      el.addEventListener('input', () => compute());
-      el.addEventListener('change', () => compute());
+      try {
+        const response = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            phone,
+            message,
+            vehicleId,
+            vehicleTitle,
+            website // honeypot
+          })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          showFeedback('Message sent! We\'ll get back to you soon.', 'success');
+          form.reset();
+          // Re-populate dropdown after reset
+          populateVehicleDropdown();
+        } else if (response.status === 429) {
+          showFeedback('Too many messages sent. Please try again later.', 'error');
+        } else {
+          const errorMsg = data.details?.[0]?.message || data.error || 'Failed to send message.';
+          showFeedback(errorMsg, 'error');
+        }
+      } catch (err) {
+        console.error('Contact form error:', err);
+        showFeedback('Network error. Please try again.', 'error');
+      }
+
+      resetButton();
     });
 
-    compute();
+    function showFeedback(msg, type) {
+      if (!feedback) return;
+      feedback.textContent = msg;
+      feedback.className = 'form-feedback show ' + type;
+    }
+
+    function hideFeedback() {
+      if (!feedback) return;
+      feedback.textContent = '';
+      feedback.className = 'form-feedback';
+    }
+
+    function resetButton() {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send My Message';
+      }
+    }
+
+    async function populateVehicleDropdown() {
+      if (!vehicleSelect) return;
+      
+      // Keep the default options
+      vehicleSelect.innerHTML = `
+        <option value="">Select a vehicle</option>
+        <option value="General Inquiry">General Inquiry</option>
+      `;
+
+      try {
+        const cars = await fetchVehiclesFromAPI();
+        cars.forEach(car => {
+          // Only show available/pending vehicles in dropdown
+          if (car.status === 'sold') return;
+          
+          const title = `${car.year} ${stripPriceLikeTokens(car.make)} ${stripPriceLikeTokens(car.model)}${car.trim ? ' ' + stripPriceLikeTokens(car.trim) : ''}`;
+          const option = document.createElement('option');
+          option.value = `${car.id}|${title}`;
+          option.textContent = title;
+          vehicleSelect.appendChild(option);
+        });
+      } catch (err) {
+        console.error('Failed to populate vehicle dropdown:', err);
+      }
+    }
   }
 
   /* ---------- init ---------- */
@@ -368,7 +462,7 @@
     renderInventory();
     setupQuickView();
     setupMobileNav();
-    setupFinancingCalculator();
+    setupContactForm();
   }
 
   if (document.readyState === 'loading') {

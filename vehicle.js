@@ -282,6 +282,73 @@
     }
   ];
 
+  // ==================== API HELPERS ====================
+  
+  /**
+   * Strip price-like tokens from a string (e.g., "5999", "$5,999")
+   * Used to sanitize model/trim fields that may accidentally contain prices
+   */
+  function stripPriceLikeTokens(str) {
+    if (!str) return '';
+    // Remove $XXX patterns and standalone 4-6 digit numbers (likely prices)
+    // Preserves model numbers like "F-150", "RX 350" (3 digits or hyphenated)
+    return str.replace(/\$[\d,]+|\b\d{4,6}\b/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Normalize vehicle data from API (snake_case -> camelCase, parse images_json)
+   */
+  function normalizeVehicle(v) {
+    const images = JSON.parse(v.images_json || '[]');
+    const firstImage = images[0] || '';
+    
+    return {
+      id: v.id,
+      title: `${v.year} ${stripPriceLikeTokens(v.make)} ${stripPriceLikeTokens(v.model)}${v.trim ? ' ' + stripPriceLikeTokens(v.trim) : ''}`,
+      year: v.year,
+      make: v.make,
+      model: v.model,
+      trim: v.trim || '',
+      price: v.price,
+      mileage: v.mileage,
+      status: v.status || 'Available',
+      mainImage: firstImage,
+      images: images,
+      thumbnails: images,
+      specs: {
+        year: String(v.year || ''),
+        mileage: `${Number(v.mileage || 0).toLocaleString('en-US')} miles`,
+        transmission: v.transmission || 'Automatic',
+        engine: v.engine || 'N/A',
+        drivetrain: v.drivetrain || 'N/A',
+        fuelType: v.fuel_type || v.fuelType || 'Gasoline',
+        exteriorColor: v.exterior_color || v.exteriorColor || 'N/A',
+        interiorColor: v.interior_color || v.interiorColor || 'N/A',
+        stockNumber: `BA${v.id}`
+      },
+      description: v.description || 'Well-maintained vehicle ready for its next owner. Reach out for details.',
+      features: Array.isArray(v.features) ? v.features : []
+    };
+  }
+
+  /**
+   * Fetch single vehicle from API
+   */
+  async function fetchVehicleFromAPI(id) {
+    try {
+      const response = await fetch(`/api/vehicles/${id}`);
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error(`API error: ${response.status}`);
+      }
+      const data = await response.json();
+      return normalizeVehicle(data);
+    } catch (err) {
+      console.error('Failed to fetch vehicle from API:', err);
+      return null;
+    }
+  }
+
   const cars = loadCarsFromStorage() || staticCars;
 
   // ==================== HELPER FUNCTIONS ====================
@@ -306,6 +373,122 @@
   }
 
   /**
+   * Generate feature highlights from vehicle specs
+   * @param {object} car - Car object
+   * @returns {string[]} Array of feature strings
+   */
+  function generateFeaturesFromSpecs(car) {
+    const features = [];
+    const specs = car.specs || {};
+    
+    // Transmission
+    if (specs.transmission && specs.transmission !== 'N/A') {
+      features.push(`${specs.transmission} Transmission`);
+    }
+    
+    // Engine
+    if (specs.engine && specs.engine !== 'N/A') {
+      features.push(`${specs.engine} Engine`);
+    }
+    
+    // Drivetrain
+    if (specs.drivetrain && specs.drivetrain !== 'N/A') {
+      const drivetrainMap = {
+        'FWD': 'Front-Wheel Drive',
+        'RWD': 'Rear-Wheel Drive',
+        'AWD': 'All-Wheel Drive',
+        '4WD': 'Four-Wheel Drive',
+        '4X4': 'Four-Wheel Drive'
+      };
+      const driveName = drivetrainMap[specs.drivetrain.toUpperCase()] || specs.drivetrain;
+      features.push(driveName);
+    }
+    
+    // Fuel type
+    if (specs.fuelType && specs.fuelType !== 'N/A' && specs.fuelType !== 'Gasoline') {
+      features.push(`${specs.fuelType} Fuel`);
+    }
+    
+    // Exterior color
+    if (specs.exteriorColor && specs.exteriorColor !== 'N/A') {
+      features.push(`${specs.exteriorColor} Exterior`);
+    }
+    
+    // Interior color
+    if (specs.interiorColor && specs.interiorColor !== 'N/A') {
+      features.push(`${specs.interiorColor} Interior`);
+    }
+    
+    // Mileage context
+    const mileageNum = car.mileage || 0;
+    if (mileageNum > 0 && mileageNum < 50000) {
+      features.push('Low Mileage');
+    } else if (mileageNum >= 50000 && mileageNum < 100000) {
+      features.push('Well-Maintained Mileage');
+    }
+    
+    // Year context
+    const currentYear = new Date().getFullYear();
+    const carYear = car.year || 0;
+    if (carYear >= currentYear - 3) {
+      features.push('Recent Model Year');
+    }
+    
+    return features;
+  }
+
+  /**
+   * Generate an automatic description from vehicle specs
+   * @param {object} car - Car object
+   * @returns {string} Generated description
+   */
+  function generateAutoDescription(car) {
+    const year = car.year || '';
+    const make = car.make || '';
+    const model = car.model || '';
+    const trim = car.trim || '';
+    const specs = car.specs || {};
+    const mileage = car.mileage || 0;
+    
+    let desc = `This ${year} ${make} ${model}`;
+    if (trim) desc += ` ${trim}`;
+    
+    // Add mileage context
+    if (mileage > 0) {
+      const mileageFormatted = Number(mileage).toLocaleString('en-US');
+      if (mileage < 50000) {
+        desc += ` comes with only ${mileageFormatted} miles on the odometer.`;
+      } else if (mileage < 100000) {
+        desc += ` has ${mileageFormatted} miles and has been well-maintained.`;
+      } else {
+        desc += ` has ${mileageFormatted} miles and is ready for the road.`;
+      }
+    } else {
+      desc += ' is ready for its next owner.';
+    }
+    
+    // Add drivetrain/engine highlights
+    const highlights = [];
+    if (specs.engine && specs.engine !== 'N/A') {
+      highlights.push(`a ${specs.engine} engine`);
+    }
+    if (specs.drivetrain && specs.drivetrain !== 'N/A') {
+      highlights.push(`${specs.drivetrain} drivetrain`);
+    }
+    if (specs.transmission && specs.transmission !== 'N/A') {
+      highlights.push(`${specs.transmission.toLowerCase()} transmission`);
+    }
+    
+    if (highlights.length > 0) {
+      desc += ` Features include ${highlights.join(', ')}.`;
+    }
+    
+    desc += ' Contact us to schedule a test drive or ask any questions.';
+    
+    return desc;
+  }
+
+  /**
    * Render vehicle details to the page
    * @param {object} car - Car object
    */
@@ -322,14 +505,17 @@
       priceEl.textContent = formatPrice(car.price);
     }
 
-    // Set status
+    // Set status (available, pending, or sold)
     const statusEl = document.getElementById('vehicle-status');
     if (statusEl) {
       statusEl.textContent = car.status;
       // Remove existing status classes and add appropriate one
-      statusEl.classList.remove('sold');
-      if (car.status.toLowerCase() === 'sold') {
+      statusEl.classList.remove('sold', 'pending');
+      const statusLower = car.status.toLowerCase();
+      if (statusLower === 'sold') {
         statusEl.classList.add('sold');
+      } else if (statusLower === 'pending') {
+        statusEl.classList.add('pending');
       }
     }
 
@@ -356,11 +542,19 @@
     // Set description
     const descriptionEl = document.getElementById('vehicle-description');
     if (descriptionEl) {
-      descriptionEl.textContent = car.description;
+      // Generate a meaningful description if none provided or generic
+      let descText = car.description;
+      if (!descText || descText === 'Well-maintained vehicle ready for its next owner. Reach out for details.') {
+        descText = generateAutoDescription(car);
+      }
+      descriptionEl.innerHTML = `<p>${descText}</p>`;
     }
 
-    // Render features
-    renderFeatures(car);
+    // Render features - use provided features or generate from specs
+    const featuresToRender = (car.features && car.features.length > 0) 
+      ? car.features 
+      : generateFeaturesFromSpecs(car);
+    renderFeatures({ ...car, features: featuresToRender });
 
     // Update CTA button
     updateCTAButton(car);
@@ -475,6 +669,8 @@
    */
   function renderFeatures(car) {
     const featuresContainer = document.getElementById('vehicle-features');
+    const featuresSectionTitle = featuresContainer ? featuresContainer.previousElementSibling : null;
+    
     if (!featuresContainer) {
       console.warn('Features container not found');
       return;
@@ -482,9 +678,26 @@
 
     // Clear existing features
     featuresContainer.innerHTML = '';
+    
+    const features = car.features || [];
+    
+    // Hide section if no features
+    if (features.length === 0) {
+      featuresContainer.style.display = 'none';
+      if (featuresSectionTitle && featuresSectionTitle.classList.contains('vehicle-section-title')) {
+        featuresSectionTitle.style.display = 'none';
+      }
+      return;
+    }
+    
+    // Show section
+    featuresContainer.style.display = '';
+    if (featuresSectionTitle && featuresSectionTitle.classList.contains('vehicle-section-title')) {
+      featuresSectionTitle.style.display = '';
+    }
 
     // Create list items for each feature
-    car.features.forEach(feature => {
+    features.forEach(feature => {
       const li = document.createElement('li');
       li.textContent = feature;
       featuresContainer.appendChild(li);
@@ -548,7 +761,7 @@
   /**
    * Initialize the vehicle detail page
    */
-  function init() {
+  async function init() {
     // Get vehicle ID from query parameter
     const vehicleIdParam = getQueryParam('id');
     
@@ -567,7 +780,14 @@
       return;
     }
 
-    // Find the car in the array
+    // Try to fetch from API first
+    const apiCar = await fetchVehicleFromAPI(vehicleId);
+    if (apiCar) {
+      renderVehicle(apiCar);
+      return;
+    }
+
+    // Fallback to local storage / static cars
     const car = cars.find(c => c.id === vehicleId);
     
     if (!car) {
@@ -587,24 +807,41 @@
     init();
   }
 
-    // custom event from admin for same-tab updates
-    window.addEventListener('bellAutoCars:updated', (e) => {
-      try {
-        const vehicleIdParam = getQueryParam('id'); if (!vehicleIdParam) return;
-        const vehicleId = parseInt(vehicleIdParam, 10);
-        const newestCars = loadCarsFromStorage() || staticCars;
-        const car = newestCars.find(c => c.id === vehicleId);
-        if (car) renderVehicle(car);
-        else showNotFound();
-      } catch (err) { console.warn('Failed to re-render vehicle page after custom event', err); }
-    });
+  // custom event from admin for same-tab updates
+  window.addEventListener('bellAutoCars:updated', async (e) => {
+    try {
+      const vehicleIdParam = getQueryParam('id'); 
+      if (!vehicleIdParam) return;
+      const vehicleId = parseInt(vehicleIdParam, 10);
+      
+      // Try API first
+      const apiCar = await fetchVehicleFromAPI(vehicleId);
+      if (apiCar) {
+        renderVehicle(apiCar);
+        return;
+      }
+      
+      const newestCars = loadCarsFromStorage() || staticCars;
+      const car = newestCars.find(c => c.id === vehicleId);
+      if (car) renderVehicle(car);
+      else showNotFound();
+    } catch (err) { console.warn('Failed to re-render vehicle page after custom event', err); }
+  });
 
   // Listen for storage changes and update the page when the current vehicle data changes
-  window.addEventListener('storage', (e) => {
+  window.addEventListener('storage', async (e) => {
     if (e.key === 'bellAutoCars') {
       const vehicleIdParam = getQueryParam('id');
       if (!vehicleIdParam) return;
       const vehicleId = parseInt(vehicleIdParam, 10);
+      
+      // Try API first
+      const apiCar = await fetchVehicleFromAPI(vehicleId);
+      if (apiCar) {
+        renderVehicle(apiCar);
+        return;
+      }
+      
       const newestCars = loadCarsFromStorage() || staticCars;
       const car = newestCars.find(c => c.id === vehicleId);
       if (car) {

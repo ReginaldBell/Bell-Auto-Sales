@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>B &amp; S Auto Sales - Admin</title>
+    <meta name="robots" content="noindex, nofollow">
+    <title>Admin Panel | B &amp; S Auto Sales</title>
     <style>
         * {
             margin: 0;
@@ -344,14 +345,10 @@
                 <h1>B &amp; S Auto Sales</h1>
                 <p>Admin Login</p>
             </div>
-            <form id="login-form" onsubmit="return false;">
+            <form id="login-form">
                 <div class="form-group">
-                    <label for="login-email">Username / Email</label>
-                    <input type="text" id="login-email" name="email" autocomplete="username" required>
-                </div>
-                <div class="form-group">
-                    <label for="login-password">Password</label>
-                    <input type="password" id="login-password" name="password" autocomplete="current-password" required>
+                    <label for="login-password">Admin Password</label>
+                    <input type="password" id="login-password" name="password" autocomplete="current-password" required placeholder="Enter admin password">
                 </div>
                 <button type="submit" class="btn">Login</button>
             </form>
@@ -360,15 +357,16 @@
 
     <!-- Admin Dashboard -->
     <div id="admin-dashboard">
-        <header class="admin-header">
+        <header class="admin-header" style="display: flex; justify-content: space-between; align-items: center;">
             <h1>B &amp; S Auto Sales – Admin</h1>
+            <button id="logout-btn" class="btn" style="width: auto; padding: 8px 20px; background-color: rgba(255,255,255,0.2);">Logout</button>
         </header>
         
         <main class="admin-content">
             <!-- Add Car Section -->
             <section class="section">
                 <h2 class="section-header">Add Car</h2>
-                <form id="add-car-form" onsubmit="return false;">
+                <form id="add-car-form">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="car-year">Year</label>

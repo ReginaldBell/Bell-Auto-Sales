@@ -1,12 +1,175 @@
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const session = require("express-session");
+const SQLiteStore = require("connect-sqlite3")(session);
+const { doubleCsrf } = require("csrf-csrf");
+const cookieParser = require("cookie-parser");
+const crypto = require("crypto");
+const { z } = require("zod");
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const nodemailer = require("nodemailer");
 
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
+const NODE_ENV = process.env.NODE_ENV || "development";
+const isProduction = NODE_ENV === "production";
+
+// Admin password from environment (REQUIRED in production)
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (isProduction ? null : "bell1234");
+if (!ADMIN_PASSWORD) {
+  console.error("FATAL: ADMIN_PASSWORD environment variable is required in production");
+  process.exit(1);
+}
+
+// Session secret (generate secure one in production)
+const SESSION_SECRET = process.env.SESSION_SECRET || 
+  (isProduction ? null : crypto.randomBytes(32).toString("hex"));
+if (!SESSION_SECRET && isProduction) {
+  console.error("FATAL: SESSION_SECRET environment variable is required in production");
+  process.exit(1);
+}
+
+/* ======================
+   Security Defaults
+====================== */
+app.disable("x-powered-by");
+
+// Trust first proxy in production (for correct client IP from X-Forwarded-For)
+// Required for rate limiting to use real client IP behind reverse proxy/load balancer
+if (isProduction) {
+  app.set("trust proxy", 1);
+}
+
+/* ======================
+   Audit Logger
+====================== */
+function auditLog(action, details) {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    action,
+    ...details
+  };
+  // Log to console (in production, you'd send this to a log aggregator)
+  console.log(`[AUDIT] ${JSON.stringify(logEntry)}`);
+}
+
+/* ======================
+   Email Configuration (Nodemailer)
+====================== */
+const CONTACT_TO = process.env.CONTACT_TO || "bellboys08@yahoo.com";
+// Yahoo SMTP defaults: smtp.mail.yahoo.com:465 with TLS
+const SMTP_HOST = process.env.SMTP_HOST || "smtp.mail.yahoo.com";
+const SMTP_PORT = parseInt(process.env.SMTP_PORT, 10) || 465;
+const SMTP_SECURE = process.env.SMTP_SECURE !== "false"; // default true for port 465
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+const EMAIL_DEBUG = process.env.EMAIL_DEBUG === "true";
+
+// Only create transporter if SMTP credentials are configured
+let emailTransporter = null;
+if (SMTP_USER && SMTP_PASS) {
+  emailTransporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS
+    }
+  });
+  console.log(`Email notifications enabled (sending to ${CONTACT_TO} via ${SMTP_HOST}:${SMTP_PORT})`);
+  if (EMAIL_DEBUG) {
+    console.log("[EMAIL_DEBUG] Debug mode ON - will log email previews and SMTP responses");
+  }
+} else {
+  console.log("Email notifications disabled (SMTP_USER/SMTP_PASS not configured)");
+}
+
+/**
+ * Send contact form notification email (best-effort, non-blocking)
+ * @param {Object} lead - The lead data
+ * @returns {Promise<boolean>} - true if sent, false if failed or not configured
+ */
+async function sendContactEmail(lead) {
+  if (!emailTransporter) {
+    if (EMAIL_DEBUG) {
+      console.log("[EMAIL_DEBUG] Skipping email - transporter not configured");
+    }
+    return false;
+  }
+
+  const { name, phone, message, vehicleTitle, leadId } = lead;
+  const vehicleInfo = vehicleTitle ? `\nVehicle Interest: ${vehicleTitle}` : "";
+  const subject = `New Lead from B&S Auto Sales - ${name}`;
+  const textBody = `New contact form submission:\n\nName: ${name}\nPhone: ${phone}${vehicleInfo}\n\nMessage:\n${message}\n\n---\nLead ID: ${leadId}\nSubmitted: ${new Date().toLocaleString()}`;
+  
+  const mailOptions = {
+    from: SMTP_USER,
+    to: CONTACT_TO,
+    subject,
+    text: textBody,
+    html: `
+      <h2>New Contact Form Submission</h2>
+      <table style="border-collapse: collapse; width: 100%; max-width: 600px;">
+        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Name</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${name}</td></tr>
+        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Phone</strong></td><td style="padding: 8px; border: 1px solid #ddd;"><a href="tel:${phone}">${phone}</a></td></tr>
+        ${vehicleTitle ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Vehicle Interest</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${vehicleTitle}</td></tr>` : ""}
+      </table>
+      <h3>Message</h3>
+      <p style="background: #f5f5f5; padding: 15px; border-radius: 4px;">${message.replace(/\n/g, "<br>")}</p>
+      <hr>
+      <p style="color: #666; font-size: 12px;">Lead ID: ${leadId} | Submitted: ${new Date().toLocaleString()}</p>
+    `
+  };
+
+  // Debug preview (before sending)
+  if (EMAIL_DEBUG) {
+    const preview = textBody.slice(0, 200) + (textBody.length > 200 ? "..." : "");
+    console.log(`[EMAIL_DEBUG] Composing email to: ${CONTACT_TO}`);
+    console.log(`[EMAIL_DEBUG] Subject: ${subject}`);
+    console.log(`[EMAIL_DEBUG] Body preview: ${preview}`);
+  }
+
+  try {
+    const info = await emailTransporter.sendMail(mailOptions);
+    
+    // Log based on debug mode
+    if (EMAIL_DEBUG) {
+      console.log(`[EMAIL_DEBUG] Email sent successfully`);
+      console.log(`[EMAIL_DEBUG] messageId: ${info.messageId}`);
+      console.log(`[EMAIL_DEBUG] accepted: ${JSON.stringify(info.accepted)}`);
+      console.log(`[EMAIL_DEBUG] rejected: ${JSON.stringify(info.rejected)}`);
+      if (info.response) {
+        console.log(`[EMAIL_DEBUG] SMTP response: ${info.response}`);
+      }
+    } else {
+      console.log(`Email sent: messageId=${info.messageId}`);
+    }
+    
+    auditLog("EMAIL_SENT", { to: CONTACT_TO, leadId, messageId: info.messageId });
+    return true;
+  } catch (err) {
+    // Safe error logging (no secrets)
+    const safeError = err.message || "Unknown error";
+    
+    if (EMAIL_DEBUG) {
+      console.log(`[EMAIL_DEBUG] Email failed`);
+      console.log(`[EMAIL_DEBUG] Error: ${safeError}`);
+      console.log(`[EMAIL_DEBUG] Error code: ${err.code || "none"}`);
+    } else {
+      console.log(`Email failed: ${safeError}`);
+    }
+    
+    auditLog("EMAIL_FAILED", { to: CONTACT_TO, leadId, error: safeError });
+    return false;
+  }
+}
 
 /* ======================
    Uploads Directory
@@ -35,21 +198,267 @@ const fileFilter = (req, file, cb) => {
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Only JPG, PNG, and WEBP images are allowed"), false);
+    const err = new Error("Only JPG, PNG, and WEBP images are allowed");
+    err.code = "INVALID_FILE_TYPE";
+    cb(err, false);
   }
 };
 
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB per file
+  limits: { 
+    fileSize: 10 * 1024 * 1024, // 10 MB per file
+    files: 10 // Max 10 files
+  }
 });
 
 /* ======================
-   Middleware
+   Helmet Security Headers
 ====================== */
-app.use(cors());
-app.use(express.json({ limit: "50mb" }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for simplicity
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: isProduction ? [] : null
+    }
+  },
+  crossOriginEmbedderPolicy: false, // Disable for external images
+  crossOriginResourcePolicy: { policy: "cross-origin" } // Allow images to load
+}));
+
+/* ======================
+   CORS Configuration
+====================== */
+function getCorsOrigins() {
+  const envOrigins = process.env.CORS_ORIGIN;
+  const allowedOrigins = [];
+  
+  // Always allow localhost in development
+  if (!isProduction) {
+    allowedOrigins.push(
+      "http://localhost:8080",
+      "http://127.0.0.1:8080",
+      `http://localhost:${PORT}`,
+      `http://127.0.0.1:${PORT}`
+    );
+  }
+  
+  // Add environment-configured origins
+  if (envOrigins) {
+    const origins = envOrigins.split(",").map(o => o.trim()).filter(Boolean);
+    allowedOrigins.push(...origins);
+  }
+  
+  return allowedOrigins;
+}
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = getCorsOrigins();
+    // Allow requests with no origin (same-origin, mobile apps, curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS not allowed"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
+  credentials: true,
+  maxAge: 86400 // 24 hours
+};
+
+app.use(cors(corsOptions));
+
+/* ======================
+   Session Configuration
+====================== */
+const sessionStore = new SQLiteStore({
+  db: "sessions.db",
+  dir: __dirname,
+  table: "sessions"
+});
+
+app.use(session({
+  store: sessionStore,
+  secret: SESSION_SECRET,
+  name: "bell_sid", // Custom name (not 'connect.sid')
+  resave: false,
+  saveUninitialized: false,
+  rolling: true, // Reset expiry on activity
+  cookie: {
+    httpOnly: true,
+    secure: isProduction, // HTTPS only in production
+    sameSite: isProduction ? "strict" : "lax",
+    maxAge: 8 * 60 * 60 * 1000 // 8 hours
+  }
+}));
+
+/* ======================
+   CSRF Protection
+====================== */
+const { doubleCsrfProtection, generateToken } = doubleCsrf({
+  getSecret: () => SESSION_SECRET,
+  cookieName: isProduction ? "__Host-csrf" : "csrf",
+  cookieOptions: {
+    httpOnly: true,
+    sameSite: isProduction ? "strict" : "lax",
+    secure: isProduction,
+    path: "/"
+  },
+  getTokenFromRequest: (req) => {
+    // Check header first, then body
+    return req.headers["x-csrf-token"] || req.body?._csrf;
+  }
+});
+
+// CSRF error handler
+function csrfErrorHandler(err, req, res, next) {
+  if (err.code === "EBADCSRFTOKEN" || err.message?.includes("csrf")) {
+    auditLog("CSRF_VIOLATION", { ip: req.ip, path: req.path, method: req.method });
+    return res.status(403).json({ error: "Invalid or missing CSRF token" });
+  }
+  next(err);
+}
+
+/* ======================
+   Rate Limiting
+====================== */
+// General API rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" },
+  handler: (req, res, next, options) => {
+    auditLog("RATE_LIMIT_EXCEEDED", {
+      ip: req.ip,
+      path: req.path,
+      method: req.method,
+      limiter: "api"
+    });
+    res.status(429).json(options.message);
+  }
+});
+
+// Strict rate limiter for mutations (POST/PUT/DELETE)
+const mutationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 mutations per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many modification requests, please try again later" },
+  handler: (req, res, next, options) => {
+    auditLog("RATE_LIMIT_EXCEEDED", {
+      ip: req.ip,
+      path: req.path,
+      method: req.method,
+      limiter: "mutation"
+    });
+    res.status(429).json(options.message);
+  }
+});
+
+// Apply general limiter to all API routes
+app.use("/api", apiLimiter);
+
+// Strict rate limiter for login attempts (brute force protection)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Only count failed attempts
+  message: { error: "Too many login attempts, please try again in 15 minutes" },
+  handler: (req, res, next, options) => {
+    auditLog("LOGIN_RATE_LIMIT", { ip: req.ip });
+    console.warn(`[Auth] Rate limit exceeded for login from ${req.ip}`);
+    res.status(429).json(options.message);
+  }
+});
+
+// Rate limiter for contact form (spam protection)
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 submissions per hour per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many messages sent. Please try again later." },
+  handler: (req, res, next, options) => {
+    auditLog("CONTACT_RATE_LIMIT", { ip: req.ip });
+    res.status(429).json(options.message);
+  }
+});
+
+// Origin/Referer allowlist for contact form (anti-CSRF for public endpoints)
+function getContactAllowedOrigins() {
+  const origins = new Set();
+  // Always allow localhost in dev
+  if (!isProduction) {
+    origins.add("http://localhost:8080");
+    origins.add("http://127.0.0.1:8080");
+    origins.add(`http://localhost:${PORT}`);
+    origins.add(`http://127.0.0.1:${PORT}`);
+  }
+  // Add from env: CONTACT_ALLOWED_ORIGINS=https://example.com,https://www.example.com
+  const envOrigins = process.env.CONTACT_ALLOWED_ORIGINS || process.env.CORS_ORIGIN;
+  if (envOrigins) {
+    envOrigins.split(",").map(o => o.trim()).filter(Boolean).forEach(o => origins.add(o));
+  }
+  return origins;
+}
+
+function contactOriginCheck(req, res, next) {
+  const origin = req.get("Origin");
+  const referer = req.get("Referer");
+  const checkValue = origin || (referer ? new URL(referer).origin : null);
+  
+  if (!checkValue) {
+    // No Origin/Referer - allow but log (some legitimate clients don't send these)
+    auditLog("CONTACT_NO_ORIGIN", { ip: req.ip, userAgent: req.get("User-Agent") });
+    return next();
+  }
+  
+  const allowed = getContactAllowedOrigins();
+  if (allowed.size === 0 || allowed.has(checkValue)) {
+    return next();
+  }
+  
+  auditLog("CONTACT_ORIGIN_BLOCKED", { ip: req.ip, origin: checkValue });
+  return res.status(403).json({ error: "Request origin not allowed" });
+}
+
+/* ======================
+   Authentication Middleware
+====================== */
+function requireAuth(req, res, next) {
+  if (req.session && req.session.isAdmin) {
+    return next();
+  }
+  auditLog("AUTH_REQUIRED", { ip: req.ip, path: req.path, method: req.method });
+  return res.status(401).json({ error: "Authentication required" });
+}
+
+/* ======================
+   Body Parser with Limits
+====================== */
+app.use(cookieParser()); // Required for csrf-csrf
+app.use(express.json({ limit: "1mb" })); // Reasonable JSON limit
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+/* ======================
+   Static Files
+====================== */
 app.use(express.static(__dirname));
 app.use("/uploads", express.static(uploadsDir));
 
@@ -66,6 +475,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
 });
 
 db.serialize(() => {
+  // Create vehicles table with status column
   db.run(`
     CREATE TABLE IF NOT EXISTS vehicles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,8 +493,36 @@ db.serialize(() => {
       drivetrain TEXT,
       description TEXT,
       images_json TEXT,
+      status TEXT NOT NULL DEFAULT 'available',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Migration: Add status column if missing (for existing databases)
+  db.run(`
+    ALTER TABLE vehicles ADD COLUMN status TEXT NOT NULL DEFAULT 'available'
+  `, (err) => {
+    // Ignore error if column already exists
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('Migration error:', err.message);
+    } else if (!err) {
+      console.log('Migration: Added status column to vehicles table');
+    }
+  });
+
+  // Create leads table for contact form submissions
+  db.run(`
+    CREATE TABLE IF NOT EXISTS leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      message TEXT NOT NULL,
+      vehicle_id INTEGER,
+      vehicle_title TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 });
@@ -93,25 +531,274 @@ db.serialize(() => {
    API Routes
 ====================== */
 
+/* ======================
+   Admin Authentication Routes
+====================== */
+
+// Get CSRF token (call this before any mutation)
+app.get("/api/admin/csrf-token", (req, res) => {
+  const token = generateToken(req, res);
+  res.json({ csrfToken: token });
+});
+
+// Check session status
+app.get("/api/admin/session", (req, res) => {
+  res.json({
+    authenticated: !!(req.session && req.session.isAdmin),
+    expiresAt: req.session?.cookie?.expires || null
+  });
+});
+
+// Admin login
+app.post("/api/admin/login", loginLimiter, (req, res) => {
+  const { password } = req.body;
+
+  // Log login attempt (without password)
+  console.log(`[Auth] Login attempt from ${req.ip}`);
+
+  // Check for missing password in request
+  if (!password) {
+    auditLog("LOGIN_FAILED", { ip: req.ip, reason: "empty_password" });
+    console.warn(`[Auth] Login failed: empty password from ${req.ip}`);
+    return res.status(401).json({ error: "Password is required" });
+  }
+
+  // Constant-time comparison to prevent timing attacks
+  const passwordBuffer = Buffer.from(password || "");
+  const adminBuffer = Buffer.from(ADMIN_PASSWORD);
+  
+  // Ensure buffers are same length for comparison
+  const isValid = passwordBuffer.length === adminBuffer.length && 
+    crypto.timingSafeEqual(passwordBuffer, adminBuffer);
+
+  if (!isValid) {
+    auditLog("LOGIN_FAILED", { ip: req.ip, reason: "invalid_password" });
+    console.warn(`[Auth] Login failed: invalid password from ${req.ip}`);
+    return res.status(401).json({ error: "Invalid password" });
+  }
+
+  // Regenerate session on login (prevent session fixation)
+  req.session.regenerate((err) => {
+    if (err) {
+      console.error("[Auth] Session regeneration failed:", err);
+      auditLog("LOGIN_FAILED", { ip: req.ip, reason: "session_error" });
+      return res.status(500).json({ error: "Login failed" });
+    }
+
+    req.session.isAdmin = true;
+    req.session.loginTime = new Date().toISOString();
+
+    auditLog("LOGIN_SUCCESS", { ip: req.ip });
+    console.log(`[Auth] Login successful from ${req.ip}`);
+    
+    // Generate fresh CSRF token for authenticated session
+    const csrfToken = generateToken(req, res);
+    res.json({ 
+      success: true, 
+      csrfToken,
+      expiresAt: req.session.cookie.expires
+    });
+  });
+});
+
+// Admin logout
+app.post("/api/admin/logout", (req, res) => {
+  const wasAdmin = req.session?.isAdmin;
+  
+  req.session.destroy((err) => {
+    if (err) {
+      console.error("Session destruction failed:", err);
+      return res.status(500).json({ error: "Logout failed" });
+    }
+    
+    // Clear session cookie
+    res.clearCookie("bell_sid", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "strict" : "lax"
+    });
+    
+    if (wasAdmin) {
+      auditLog("LOGOUT", { ip: req.ip });
+    }
+    
+    res.json({ success: true });
+  });
+});
+
+/* ======================
+   Zod Validation Schema
+====================== */
+// Sanitize string to prevent XSS (basic - strips HTML tags)
+const sanitizeString = (str) => {
+  if (typeof str !== "string") return str;
+  return str.replace(/<[^>]*>/g, "").trim();
+};
+
+// Allowed fields whitelist
+const ALLOWED_VEHICLE_FIELDS = [
+  "year", "make", "model", "trim", "price", "mileage",
+  "exterior_color", "interior_color", "fuel_type",
+  "transmission", "engine", "drivetrain", "description",
+  "status", "image_url"
+];
+
+// Vehicle validation schema
+const vehicleSchema = z.object({
+  year: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined) ? null : Number(val),
+    z.number().int().min(1900).max(new Date().getFullYear() + 2).nullable()
+  ),
+  make: z.preprocess(
+    sanitizeString,
+    z.string().max(50).optional().default("")
+  ),
+  model: z.preprocess(
+    sanitizeString,
+    z.string().max(50).optional().default("")
+  ),
+  trim: z.preprocess(
+    sanitizeString,
+    z.string().max(50).optional().default("")
+  ),
+  price: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined) ? null : Number(val),
+    z.number().int().min(0).max(10000000).nullable() // Max $10M
+  ),
+  mileage: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined) ? null : Number(val),
+    z.number().int().min(0).max(1000000).nullable() // Max 1M miles
+  ),
+  exterior_color: z.preprocess(
+    sanitizeString,
+    z.string().max(50).optional().default("")
+  ),
+  interior_color: z.preprocess(
+    sanitizeString,
+    z.string().max(50).optional().default("")
+  ),
+  fuel_type: z.preprocess(
+    sanitizeString,
+    z.string().max(30).optional().default("")
+  ),
+  transmission: z.preprocess(
+    sanitizeString,
+    z.string().max(30).optional().default("")
+  ),
+  engine: z.preprocess(
+    sanitizeString,
+    z.string().max(50).optional().default("")
+  ),
+  drivetrain: z.preprocess(
+    sanitizeString,
+    z.string().max(30).optional().default("")
+  ),
+  description: z.preprocess(
+    sanitizeString,
+    z.string().max(5000).optional().default("") // Max 5000 chars
+  ),
+  status: z.preprocess(
+    sanitizeString,
+    z.enum(["available", "sold", "pending"]).optional().default("available")
+  ),
+  image_url: z.string().max(2000).optional() // For URL-based images
+}).strict(); // Reject unknown fields
+
+// Contact form validation schema
+const contactSchema = z.object({
+  name: z.preprocess(
+    sanitizeString,
+    z.string().min(1, "Name is required").max(100, "Name too long")
+  ),
+  phone: z.preprocess(
+    sanitizeString,
+    z.string()
+      .min(1, "Phone is required")
+      .max(30, "Phone number too long")
+      .regex(/^[\d\s()\-+.]+$/, "Invalid phone format")
+  ),
+  message: z.preprocess(
+    sanitizeString,
+    z.string().min(1, "Message is required").max(2000, "Message too long")
+  ),
+  vehicleId: z.preprocess(
+    (val) => (val === "" || val === null || val === undefined) ? null : Number(val),
+    z.number().int().positive().nullable().optional()
+  ),
+  vehicleTitle: z.preprocess(
+    sanitizeString,
+    z.string().max(200).optional().default("")
+  ),
+  // Honeypot field - must be empty (bots fill this)
+  website: z.preprocess(
+    (val) => (val === undefined || val === null) ? "" : String(val),
+    z.string().max(0, "spam_detected")
+  )
+}).strict(); // Reject unknown fields
+
+/**
+ * Validate contact form submission
+ */
+function validateContactForm(body) {
+  const result = contactSchema.safeParse(body);
+  if (!result.success) {
+    const errors = result.error.errors.map(e => ({
+      field: e.path.join("."),
+      message: e.message
+    }));
+    // Check for honeypot trigger
+    if (errors.some(e => e.message === "spam_detected")) {
+      return { success: false, isSpam: true, errors: [{ field: "form", message: "Invalid submission" }] };
+    }
+    return { success: false, errors };
+  }
+  return { success: true, data: result.data };
+}
+
+/**
+ * Validate and parse vehicle fields
+ * Returns { success: true, data } or { success: false, errors }
+ */
+function validateVehicleFields(body) {
+  // Filter to only allowed fields
+  const filtered = {};
+  for (const key of ALLOWED_VEHICLE_FIELDS) {
+    if (body[key] !== undefined) {
+      filtered[key] = body[key];
+    }
+  }
+  
+  const result = vehicleSchema.safeParse(filtered);
+  if (!result.success) {
+    const errors = result.error.errors.map(e => ({
+      field: e.path.join("."),
+      message: e.message
+    }));
+    return { success: false, errors };
+  }
+  return { success: true, data: result.data };
+}
+
 /**
  * Helper: Parse vehicle fields from multipart form (strings → proper types)
+ * @deprecated Use validateVehicleFields instead
  */
 function parseVehicleFields(body) {
   return {
     year: parseInt(body.year, 10) || null,
-    make: body.make || "",
-    model: body.model || "",
-    trim: body.trim || "",
+    make: sanitizeString(body.make) || "",
+    model: sanitizeString(body.model) || "",
+    trim: sanitizeString(body.trim) || "",
     price: parseInt(body.price, 10) || null,
     mileage: parseInt(body.mileage, 10) || null,
-    exterior_color: body.exterior_color || "",
-    interior_color: body.interior_color || "",
-    fuel_type: body.fuel_type || "",
-    transmission: body.transmission || "",
-    engine: body.engine || "",
-    drivetrain: body.drivetrain || "",
-    description: body.description || "",
-    status: body.status || "available"
+    exterior_color: sanitizeString(body.exterior_color) || "",
+    interior_color: sanitizeString(body.interior_color) || "",
+    fuel_type: sanitizeString(body.fuel_type) || "",
+    transmission: sanitizeString(body.transmission) || "",
+    engine: sanitizeString(body.engine) || "",
+    drivetrain: sanitizeString(body.drivetrain) || "",
+    description: sanitizeString(body.description) || "",
+    status: sanitizeString(body.status) || "available"
   };
 }
 
@@ -184,7 +871,16 @@ const uploadFields = upload.fields([
   { name: 'image', maxCount: 10 }
 ]);
 
-app.post("/api/vehicles", uploadFields, (req, res) => {
+app.post("/api/vehicles", requireAuth, mutationLimiter, uploadFields, doubleCsrfProtection, csrfErrorHandler, (req, res) => {
+  // Validate input
+  const validation = validateVehicleFields(req.body);
+  if (!validation.success) {
+    return res.status(400).json({
+      error: "Validation failed",
+      details: validation.errors
+    });
+  }
+
   const v = parseVehicleFields(req.body);
   // Combine files from both field names
   const allFiles = [...(req.files?.images || []), ...(req.files?.image || [])];
@@ -195,8 +891,8 @@ app.post("/api/vehicles", uploadFields, (req, res) => {
       year, make, model, trim, price, mileage,
       exterior_color, interior_color, fuel_type,
       transmission, engine, drivetrain,
-      description, images_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      description, images_json, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   db.run(
@@ -215,21 +911,37 @@ app.post("/api/vehicles", uploadFields, (req, res) => {
       v.engine,
       v.drivetrain,
       v.description,
-      JSON.stringify(images)
+      JSON.stringify(images),
+      v.status || 'available'
     ],
     function (err) {
       if (err) {
         console.error("Insert error:", err);
         return res.status(500).json({ error: "Insert failed" });
       }
+      auditLog("CREATE_VEHICLE", { id: this.lastID, make: v.make, model: v.model }, req);
       res.status(201).json({ id: this.lastID });
     }
   );
 });
 
 /* UPDATE vehicle (supports multipart/form-data with images) */
-app.put("/api/vehicles/:id", uploadFields, (req, res) => {
+app.put("/api/vehicles/:id", requireAuth, mutationLimiter, uploadFields, doubleCsrfProtection, csrfErrorHandler, (req, res) => {
   const vehicleId = req.params.id;
+
+  // Validate ID is numeric
+  if (!/^\d+$/.test(vehicleId)) {
+    return res.status(400).json({ error: "Invalid vehicle ID" });
+  }
+
+  // Validate input
+  const validation = validateVehicleFields(req.body);
+  if (!validation.success) {
+    return res.status(400).json({
+      error: "Validation failed",
+      details: validation.errors
+    });
+  }
 
   // First, get existing images to preserve if no new ones uploaded
   db.get("SELECT images_json FROM vehicles WHERE id = ?", [vehicleId], (err, row) => {
@@ -261,6 +973,7 @@ app.put("/api/vehicles/:id", uploadFields, (req, res) => {
         fuel_type = ?, transmission = ?,
         engine = ?, drivetrain = ?,
         description = ?, images_json = ?,
+        status = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
@@ -282,6 +995,7 @@ app.put("/api/vehicles/:id", uploadFields, (req, res) => {
         v.drivetrain,
         v.description,
         JSON.stringify(images),
+        v.status || 'available',
         vehicleId
       ],
       function (err) {
@@ -292,6 +1006,7 @@ app.put("/api/vehicles/:id", uploadFields, (req, res) => {
         if (this.changes === 0) {
           return res.status(404).json({ error: "Vehicle not found" });
         }
+        auditLog("UPDATE_VEHICLE", { id: vehicleId, make: v.make, model: v.model }, req);
         res.json({ success: true });
       }
     );
@@ -299,10 +1014,17 @@ app.put("/api/vehicles/:id", uploadFields, (req, res) => {
 });
 
 /* DELETE vehicle */
-app.delete("/api/vehicles/:id", (req, res) => {
+app.delete("/api/vehicles/:id", requireAuth, mutationLimiter, doubleCsrfProtection, csrfErrorHandler, (req, res) => {
+  const vehicleId = req.params.id;
+
+  // Validate ID is numeric
+  if (!/^\d+$/.test(vehicleId)) {
+    return res.status(400).json({ error: "Invalid vehicle ID" });
+  }
+
   db.run(
     "DELETE FROM vehicles WHERE id = ?",
-    [req.params.id],
+    [vehicleId],
     function (err) {
       if (err) {
         return res.status(500).json({ error: "Delete failed" });
@@ -310,9 +1032,137 @@ app.delete("/api/vehicles/:id", (req, res) => {
       if (this.changes === 0) {
         return res.status(404).json({ error: "Vehicle not found" });
       }
+      auditLog("DELETE_VEHICLE", { id: vehicleId }, req);
       res.json({ success: true });
     }
   );
+});
+
+/* ======================
+   Contact Form API
+====================== */
+
+/* POST contact form submission */
+app.post("/api/contact", contactOriginCheck, contactLimiter, (req, res) => {
+  // Validate input
+  const validation = validateContactForm(req.body);
+  
+  // Silent rejection for spam (honeypot triggered)
+  if (validation.isSpam) {
+    auditLog("SPAM_BLOCKED", { ip: req.ip, type: "honeypot" });
+    // Return success to not tip off bots
+    return res.json({ success: true });
+  }
+  
+  if (!validation.success) {
+    return res.status(400).json({
+      error: "Validation failed",
+      details: validation.errors
+    });
+  }
+
+  const { name, phone, message, vehicleId, vehicleTitle } = validation.data;
+  const ipAddress = req.ip || req.connection?.remoteAddress || "unknown";
+  const userAgent = req.get("User-Agent") || "unknown";
+
+  db.run(
+    `INSERT INTO leads (name, phone, message, vehicle_id, vehicle_title, ip_address, user_agent)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [name, phone, message, vehicleId || null, vehicleTitle || "", ipAddress, userAgent],
+    function (err) {
+      if (err) {
+        console.error("Failed to save lead:", err);
+        return res.status(500).json({ error: "Failed to send message" });
+      }
+      
+      const leadId = this.lastID;
+      
+      auditLog("CONTACT_FORM", {
+        leadId,
+        name,
+        vehicleId: vehicleId || null,
+        ip: ipAddress
+      });
+      
+      // Send email notification (non-blocking, don't fail if email fails)
+      sendContactEmail({ name, phone, message, vehicleTitle, leadId })
+        .catch(err => console.error("Email notification error:", err));
+      
+      res.json({ success: true, message: "Message sent successfully" });
+    }
+  );
+});
+
+/* GET all leads (admin only) */
+app.get("/api/leads", requireAuth, (req, res) => {
+  db.all(
+    "SELECT * FROM leads ORDER BY created_at DESC",
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: "Database read failed" });
+      }
+      auditLog("VIEW_LEADS", { count: rows.length, ip: req.ip });
+      res.json(rows);
+    }
+  );
+});
+
+/* DELETE lead (admin only) */
+app.delete("/api/leads/:id", requireAuth, mutationLimiter, doubleCsrfProtection, csrfErrorHandler, (req, res) => {
+  const leadId = parseInt(req.params.id, 10);
+  if (isNaN(leadId)) {
+    return res.status(400).json({ error: "Invalid lead ID" });
+  }
+
+  db.run("DELETE FROM leads WHERE id = ?", [leadId], function (err) {
+    if (err) {
+      return res.status(500).json({ error: "Delete failed" });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+    auditLog("DELETE_LEAD", { id: leadId, ip: req.ip });
+    res.json({ success: true });
+  });
+});
+
+/* ======================
+   Error Handling Middleware
+====================== */
+
+// Handle Multer errors (file uploads)
+app.use((err, req, res, next) => {
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({ error: "File too large. Maximum size is 10MB." });
+  }
+  if (err.code === "INVALID_FILE_TYPE") {
+    return res.status(415).json({ error: "Invalid file type. Only JPG, PNG, and WEBP are allowed." });
+  }
+  if (err.name === "MulterError") {
+    return res.status(400).json({ error: `Upload error: ${err.message}` });
+  }
+  next(err);
+});
+
+// Generic error handler - hide stack traces in production
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  auditLog("SERVER_ERROR", {
+    message: err.message,
+    path: req.path,
+    method: req.method
+  }, req);
+
+  res.status(err.status || 500).json({
+    error: isProduction ? "Internal server error" : err.message,
+    ...(isProduction ? {} : { stack: err.stack })
+  });
+});
+
+// 404 handler for API routes
+app.use("/api", (req, res, next) => {
+  res.status(404).json({ error: "Endpoint not found" });
 });
 
 /* ======================
@@ -320,4 +1170,5 @@ app.delete("/api/vehicles/:id", (req, res) => {
 ====================== */
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Environment: ${NODE_ENV}`);
 });

@@ -3,13 +3,70 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>B &amp; S Auto Sales - Quality Used Cars in Mineola, TX</title>
+  <title>B &amp; S Auto Sales | Quality Used Cars in East Texas</title>
+  <meta name="description" content="B &amp; S Auto Sales offers quality used cars, trucks, and SUVs at fair prices in East Texas. Serving Mineola and surrounding communities with honest deals and friendly service." />
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://example.com/" />
+  <meta property="og:title" content="B &amp; S Auto Sales | Quality Used Cars in East Texas" />
+  <meta property="og:description" content="Quality used cars, trucks, and SUVs at fair prices. Serving East Texas, including Mineola, with honest deals and friendly service." />
+  <meta property="og:image" content="https://example.com/unnamed.png" />
 
   <!-- Google Fonts - Inter -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="canonical" href="https://example.com/" />
 
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" type="image/png" href="unnamed.png">
+
+  <!-- LocalBusiness JSON-LD Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "AutoDealer",
+    "name": "B & S Auto Sales",
+    "description": "Quality used cars, trucks, and SUVs at fair prices in East Texas.",
+    "url": "https://example.com",
+    "logo": "https://example.com/unnamed.png",
+    "image": "https://example.com/unnamed.png",
+    "telephone": "+1-214-451-8037",
+    "email": "bellboys08@yahoo.com",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Mineola",
+      "addressRegion": "TX",
+      "addressCountry": "US"
+    },
+    "areaServed": {
+      "@type": "GeoCircle",
+      "geoMidpoint": {
+        "@type": "GeoCoordinates",
+        "latitude": 32.6632,
+        "longitude": -95.4883
+      },
+      "geoRadius": "80000"
+    },
+    "openingHoursSpecification": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "opens": "09:00",
+        "closes": "18:00"
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": "Saturday",
+        "opens": "09:00",
+        "closes": "17:00"
+      }
+    ],
+    "priceRange": "$$",
+    "sameAs": [
+      "https://www.facebook.com/profile.php?id=100057385433770"
+    ]
+  }
+  </script>
 </head>
 
 <body>
@@ -29,9 +86,13 @@
           <li><a href="#home" class="nav-link">Home</a></li>
           <li><a href="#inventory" class="nav-link">Inventory</a></li>
           <li><a href="#reviews" class="nav-link">Reviews</a></li>
-          <li><a href="#financing" class="nav-link">Financing</a></li>
           <li><a href="#contact" class="nav-link">Contact</a></li>
         </ul>
+        <a href="https://www.facebook.com/marketplace/profile/1649348353/" target="_blank" rel="noopener noreferrer" class="header-social-link" aria-label="Facebook">
+          <svg class="social-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+        </a>
       </nav>
 
       <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Open menu" aria-expanded="false">☰</button>
@@ -43,8 +104,13 @@
         <a href="#home" class="mobile-nav-link">Home</a>
         <a href="#inventory" class="mobile-nav-link">Inventory</a>
         <a href="#reviews" class="mobile-nav-link">Reviews</a>
-        <a href="#financing" class="mobile-nav-link">Financing</a>
         <a href="#contact" class="mobile-nav-link">Contact</a>
+        <a href="https://www.facebook.com/marketplace/profile/1649348353/" target="_blank" rel="noopener noreferrer" class="mobile-nav-link mobile-social-link" aria-label="Facebook">
+          <svg class="social-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          <span>Facebook</span>
+        </a>
       </div>
     </div>
   </header>
@@ -52,14 +118,14 @@
   <!-- HERO -->
   <section class="hero" id="home">
     <div class="container hero-content">
-      <h1 class="hero-title">Find Your Next Car Today</h1>
+      <h1 class="hero-title">Your Next Car Is Waiting</h1>
       <p class="hero-subtitle">
-        Reliable, affordable, and quality used vehicles you can trust. Serving Mineola, TX and surrounding areas.
+        Quality used vehicles at fair prices—backed by a local team you can actually talk to. Serving East Texas, including Mineola and nearby communities.
       </p>
 
       <div class="hero-cta">
-        <a href="#inventory" class="btn btn-primary">Browse Inventory</a>
-        <a href="#contact" class="btn btn-secondary">Contact Us</a>
+        <a href="#inventory" class="btn btn-primary">See What's Available</a>
+        <a href="#contact" class="btn btn-secondary">Get in Touch</a>
       </div>
     </div>
   </section>
@@ -68,15 +134,15 @@
   <section id="inventory" class="section">
     <div class="container">
       <div class="section-header">
-        <h2 class="section-title">Featured Inventory</h2>
-        <p class="section-subtitle">Browse our selection of quality pre-owned vehicles</p>
+        <h2 class="section-title">Current Inventory</h2>
+        <p class="section-subtitle">Every vehicle here has been checked out and is ready to go</p>
       </div>
 
       <div id="inventory-grid" class="vehicle-grid car-grid">
         <!-- Will be replaced by script.js inventory renderer -->
         <div class="no-inventory" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
-          <h3>Loading inventory…</h3>
-          <p>If this takes too long, refresh the page.</p>
+          <h3>Loading vehicles…</h3>
+          <p>Just a moment while we pull up the latest.</p>
         </div>
       </div>
     </div>
@@ -87,12 +153,18 @@
     <div class="container">
       <div class="section-header">
         <h2 class="section-title">What Our Customers Say</h2>
-        <p class="section-subtitle">Real experiences from customers across Mineola and nearby areas</p>
+        <p class="section-subtitle">Hear from real buyers across East Texas</p>
       </div>
 
       <div class="reviews-grid">
         <div class="review-card">
-          <div class="review-stars" aria-label="5 out of 5 stars">⭐⭐⭐⭐⭐</div>
+          <div class="review-stars" aria-label="5 out of 5 stars">
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
           <p class="review-text">“Great experience buying my first car from B &amp; S. Friendly people, fair pricing, and quick paperwork.”</p>
           <div class="review-author">
             <div class="review-author-info">
@@ -104,7 +176,13 @@
         </div>
 
         <div class="review-card">
-          <div class="review-stars" aria-label="5 out of 5 stars">⭐⭐⭐⭐⭐</div>
+          <div class="review-stars" aria-label="5 out of 5 stars">
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
           <p class="review-text">“Honest and straightforward. No pressure. Found the right truck for work and drove home the same day.”</p>
           <div class="review-author">
             <div class="review-author-info">
@@ -116,8 +194,14 @@
         </div>
 
         <div class="review-card">
-          <div class="review-stars" aria-label="5 out of 5 stars">⭐⭐⭐⭐⭐</div>
-          <p class="review-text">“They helped me get financing even with not-perfect credit. Super grateful for how easy they made it.”</p>
+          <div class="review-stars" aria-label="5 out of 5 stars">
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
+          <p class="review-text">"The whole process was smooth and stress-free. Super grateful for how easy they made buying a car."</p>
           <div class="review-author">
             <div class="review-author-info">
               <p class="review-name">Maria G.</p>
@@ -128,7 +212,13 @@
         </div>
 
         <div class="review-card">
-          <div class="review-stars" aria-label="5 out of 5 stars">⭐⭐⭐⭐⭐</div>
+          <div class="review-stars" aria-label="5 out of 5 stars">
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
           <p class="review-text">“Local, trustworthy, and the cars are clean. I’ve bought two vehicles here and will be back.”</p>
           <div class="review-author">
             <div class="review-author-info">
@@ -140,7 +230,13 @@
         </div>
 
         <div class="review-card">
-          <div class="review-stars" aria-label="5 out of 5 stars">⭐⭐⭐⭐⭐</div>
+          <div class="review-stars" aria-label="5 out of 5 stars">
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
           <p class="review-text">“They showed me multiple options in my budget with no stress. Great service.”</p>
           <div class="review-author">
             <div class="review-author-info">
@@ -152,7 +248,13 @@
         </div>
 
         <div class="review-card">
-          <div class="review-stars" aria-label="5 out of 5 stars">⭐⭐⭐⭐⭐</div>
+          <div class="review-stars" aria-label="5 out of 5 stars">
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg class="star-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
           <p class="review-text">“Transparent pricing, quick communication, and a smooth process. A+ experience.”</p>
           <div class="review-author">
             <div class="review-author-info">
@@ -165,8 +267,11 @@
       </div>
 
       <div class="reviews-cta">
-        <a href="https://www.facebook.com/profile.php?id=100057385433770" target="_blank" rel="noopener" class="btn btn-primary">
-          Leave Us a Review on Facebook
+        <a href="https://www.facebook.com/profile.php?id=100057385433770&sk=reviews" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+          <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          Share Your Experience
         </a>
       </div>
     </div>
@@ -176,161 +281,61 @@
   <section class="section why-choose-section" id="why-choose">
     <div class="container">
       <div class="section-header">
-        <h2 class="section-title">Why Choose B &amp; S Auto Sales?</h2>
-        <p class="section-subtitle">Simple, honest car buying—backed by a local team you can reach</p>
+        <h2 class="section-title">Why Buy From Us?</h2>
+        <p class="section-subtitle">No pressure, no games—just straightforward car buying</p>
       </div>
 
       <div class="features-grid">
         <div class="feature-card">
-          <div class="feature-icon">💰</div>
-          <h3 class="feature-title">Financing Available</h3>
-          <p class="feature-description">We work with multiple lenders to help you get approved and on the road.</p>
-        </div>
-
-        <div class="feature-card">
           <div class="feature-icon">✓</div>
-          <h3 class="feature-title">Quality Inspected</h3>
-          <p class="feature-description">Every vehicle is inspected before it hits the lot. Buy with confidence.</p>
+          <h3 class="feature-title">Checked Before You See It</h3>
+          <p class="feature-description">We look over every vehicle before it goes on the lot—so you know what you're getting.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🤝</div>
-          <h3 class="feature-title">Fair Pricing</h3>
-          <p class="feature-description">Transparent pricing and a straight answer. No games, no runaround.</p>
+          <h3 class="feature-title">Upfront Pricing</h3>
+          <p class="feature-description">The price you see is the price we'll talk. No surprises, no haggling games.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🛡️</div>
-          <h3 class="feature-title">Warranty Options</h3>
-          <p class="feature-description">Ask about available warranty options on most vehicles.</p>
+          <h3 class="feature-title">Warranty Available</h3>
+          <p class="feature-description">Most vehicles qualify for optional coverage. Just ask—we'll walk you through it.</p>
         </div>
 
         <div class="feature-card">
-          <div class="feature-icon">🔄</div>
-          <h3 class="feature-title">Trade-Ins Welcome</h3>
-          <p class="feature-description">We accept trade-ins. Bring your vehicle and we’ll give you a fair offer.</p>
-        </div>
 
-        <div class="feature-card">
           <div class="feature-icon">⚡</div>
-          <h3 class="feature-title">Fast Process</h3>
-          <p class="feature-description">Get answers quickly and keep it moving—schedule a test drive anytime.</p>
+          <h3 class="feature-title">Quick &amp; Easy</h3>
+          <p class="feature-description">We respect your time. Get answers fast and drive away same-day if you're ready.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- FINANCING CALCULATOR -->
-  <section id="financing" class="section financing-section">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="section-title">Financing Calculator</h2>
-        <p class="section-subtitle">Estimate your monthly payment in seconds</p>
-      </div>
-
-      <div class="calculator-container">
-        <div class="calculator-form">
-          <div class="form-group">
-            <label for="calc-price" class="form-label">Vehicle Price</label>
-            <div class="input-with-prefix">
-              <span class="input-prefix">$</span>
-              <input type="number" id="calc-price" class="form-input" value="20000" min="0" step="100">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="calc-down" class="form-label">Down Payment</label>
-            <div class="input-with-prefix">
-              <span class="input-prefix">$</span>
-              <input type="number" id="calc-down" class="form-input" value="2000" min="0" step="100">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="calc-rate" class="form-label">Interest Rate</label>
-            <div class="input-with-prefix">
-              <input type="number" id="calc-rate" class="form-input" value="6.5" min="0" max="30" step="0.1">
-              <span class="input-suffix">%</span>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="calc-term" class="form-label">Loan Term (Months)</label>
-            <select id="calc-term" class="form-select">
-              <option value="24">24 months</option>
-              <option value="36">36 months</option>
-              <option value="48">48 months</option>
-              <option value="60" selected>60 months</option>
-              <option value="72">72 months</option>
-              <option value="84">84 months</option>
-            </select>
-          </div>
-
-          <button id="calc-button" class="btn btn-primary" type="button" style="width: 100%;">Calculate Payment</button>
-
-          <p class="calculator-disclaimer">
-            Estimates only. Taxes, title, fees, and lender terms may change final payment.
-          </p>
-        </div>
-
-        <div class="calculator-result" aria-live="polite">
-          <div class="result-card">
-            <h3>Estimated Monthly Payment</h3>
-            <div class="result-amount" id="result-payment">$0</div>
-
-            <div class="result-details">
-              <div class="result-detail-item">
-                <span>Loan Amount:</span>
-                <span id="result-loan">$0</span>
-              </div>
-              <div class="result-detail-item">
-                <span>APR:</span>
-                <span id="result-apr">0%</span>
-              </div>
-              <div class="result-detail-item">
-                <span>Term:</span>
-                <span id="result-term">0 months</span>
-              </div>
-              <div class="result-detail-item">
-                <span>Total Interest:</span>
-                <span id="result-interest">$0</span>
-              </div>
-              <div class="result-detail-item">
-                <span>Total Paid:</span>
-                <span id="result-total">$0</span>
-              </div>
-            </div>
-
-            <div class="result-actions">
-              <a href="#contact" class="btn btn-primary" style="width: 100%;">Get Pre-Approved / Ask About Financing</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <!-- CONTACT -->
   <section class="section contact" id="contact">
     <div class="container contact-content">
-      <h2 class="section-title">Get In Touch</h2>
+<h2 class="section-title">Let's Talk</h2>
       <p class="section-subtitle">
-        Have questions or want to schedule a test drive? Fill out the form below and we’ll get back to you.
+        Questions? Want to set up a test drive? Drop us a message—we usually reply within a few hours.
       </p>
 
       <form id="contact-form">
         <div class="form-group">
-          <label for="name" class="form-label">Full Name</label>
+          <label for="name" class="form-label">Your Name</label>
           <input type="text" id="name" name="name" class="form-input" required />
         </div>
 
         <div class="form-group">
-          <label for="phone" class="form-label">Phone Number</label>
-          <input type="tel" id="phone" name="phone" class="form-input" required />
+          <label for="phone" class="form-label">Best Phone Number</label>
+          <input type="tel" id="phone" name="phone" class="form-input" placeholder="(555) 123-4567" required />
         </div>
 
         <div class="form-group">
-          <label for="car-interest" class="form-label">Interested In</label>
+          <label for="car-interest" class="form-label">Which Vehicle?</label>
           <select id="car-interest" name="car-interest" class="form-select">
             <option value="">Select a vehicle</option>
             <option value="General Inquiry">General Inquiry</option>
@@ -342,10 +347,19 @@
           <textarea id="message" name="message" class="form-textarea" required></textarea>
         </div>
 
-        <button type="submit" class="btn btn-primary form-submit">Send Message</button>
+        <!-- Honeypot field - hidden from humans, bots will fill it -->
+        <div class="form-group" style="position: absolute; left: -9999px;" aria-hidden="true">
+          <label for="website">Website</label>
+          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <!-- Form feedback messages -->
+        <div id="contact-feedback" class="form-feedback" role="alert" aria-live="polite"></div>
+
+        <button type="submit" id="contact-submit" class="btn btn-primary form-submit">Send My Message</button>
 
         <p class="contact-hint">
-          Prefer Facebook? Message us here:
+          Rather message us on Facebook? No problem:
           <a class="contact-link" href="https://www.facebook.com/profile.php?id=100057385433770" target="_blank" rel="noopener">B &amp; S Auto Sales</a>
         </p>
       </form>
@@ -357,11 +371,10 @@
     <div class="container footer-content">
       <div class="footer-section">
         <h3>B &amp; S Auto Sales</h3>
-        <p>Quality used vehicles, honest answers, and financing options that help you drive home confident.</p>
+        <p>Good cars, fair deals, and real people you can talk to. That's what we're about.</p>
         <div class="footer-badges">
           <span class="footer-pill">Local Dealer</span>
-          <span class="footer-pill">Financing Available</span>
-          <span class="footer-pill">Trade-Ins Welcome</span>
+          <span class="footer-pill">Quality Inspected</span>
         </div>
       </div>
 
@@ -369,16 +382,20 @@
         <h3>Quick Links</h3>
         <a href="#inventory">Inventory</a><br>
         <a href="#reviews">Reviews</a><br>
-        <a href="#financing">Financing</a><br>
         <a href="#contact">Contact</a>
       </div>
 
       <div class="footer-section">
         <h3>Contact</h3>
-        <p>Mineola, TX</p>
-        <p><a href="tel:+19030000000">(903) 000-0000</a></p>
-        <p><a href="mailto:bsautosales@example.com">bsautosales@example.com</a></p>
-        <p><a href="https://www.facebook.com/profile.php?id=100057385433770" target="_blank" rel="noopener">Facebook</a></p>
+        <p>East Texas (Mineola, TX)</p>
+        <p><a href="tel:+12144518037">(214) 451-8037</a></p>
+        <p><a href="mailto:bellboys08@yahoo.com">bellboys08@yahoo.com</a></p>
+        <a href="https://www.facebook.com/marketplace/profile/1649348353/" target="_blank" rel="noopener noreferrer" class="footer-social-link" aria-label="Facebook">
+          <svg class="social-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          <span>Follow us on Facebook</span>
+        </a>
       </div>
     </div>
 
