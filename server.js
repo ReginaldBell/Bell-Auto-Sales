@@ -224,7 +224,7 @@ const upload = multer({
   fileFilter,
   limits: { 
     fileSize: 10 * 1024 * 1024, // 10 MB per file
-    files: 10 // Max 10 files
+    files: 20 // Max 20 files
   }
 });
 
@@ -882,8 +882,8 @@ app.get("/api/vehicles/:id", (req, res) => {
 
 /* CREATE vehicle (supports multipart/form-data with images) */
 const uploadFields = upload.fields([
-  { name: 'images', maxCount: 10 },
-  { name: 'image', maxCount: 10 }
+  { name: 'images', maxCount: 20 },
+  { name: 'image', maxCount: 20 }
 ]);
 
 app.post("/api/vehicles", requireAuth, mutationLimiter, uploadFields, doubleCsrfProtection, csrfErrorHandler, (req, res) => {
