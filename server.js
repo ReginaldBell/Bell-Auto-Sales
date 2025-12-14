@@ -65,13 +65,17 @@ if (isProduction) {
 /* ======================
    Audit Logger
 ====================== */
-function auditLog(action, details) {
+function auditLog(action, details, req = null) {
   const timestamp = new Date().toISOString();
   const logEntry = {
     timestamp,
     action,
     ...details
   };
+  // Add IP from request if provided and not already in details
+  if (req && !details.ip) {
+    logEntry.ip = req.ip || req.connection?.remoteAddress || 'unknown';
+  }
   // Log to console (in production, you'd send this to a log aggregator)
   console.log(`[AUDIT] ${JSON.stringify(logEntry)}`);
 }
@@ -1239,6 +1243,9 @@ app.delete("/api/leads/:id", requireAuth, mutationLimiter, doubleCsrfProtection,
 
 // Handle Multer errors (file uploads)
 app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
   if (err.code === "LIMIT_FILE_SIZE") {
     return res.status(413).json({ error: "Image too large. Please upload under 15MB per image." });
   }
@@ -1253,6 +1260,11 @@ app.use((err, req, res, next) => {
 
 // Generic error handler - hide stack traces in production
 app.use((err, req, res, next) => {
+  // If headers already sent, delegate to default Express error handler
+  if (res.headersSent) {
+    return next(err);
+  }
+  
   console.error("Unhandled error:", err);
   auditLog("SERVER_ERROR", {
     message: err.message,

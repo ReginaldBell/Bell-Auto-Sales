@@ -87,14 +87,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res.status === 403) {
       const text = await res.text();
       if (text.includes('CSRF') || text.includes('csrf')) {
-        await fetchCsrfToken();
-        // Retry once with new token
-        headers['X-CSRF-Token'] = AdminState.csrfToken;
-        const retryRes = await fetch(url, { ...options, headers, credentials: 'include' });
-        if (!retryRes.ok) {
-          const retryText = await retryRes.text();
-          throw new Error(`HTTP ${retryRes.status}: ${retryText}`);
-        }
+          console.log('[Auth] CSRF token rejected, refreshing and retrying...');
+          await fetchCsrfToken();
+          // Retry once with new token
+          const retryHeaders = { ...headers, 'X-CSRF-Token': AdminState.csrfToken };
+          const retryRes = await fetch(url, { ...options, headers: retryHeaders, credentials: 'include' });
         return retryRes;
       }
       throw new Error(`HTTP 403: ${text}`);
@@ -114,7 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const ct = res.headers.get('content-type') || '';
     if (ct.includes('application/json')) return res.json();
     const text = await res.text().catch(() => '');
-    return text ? JSON.parse(text) : null;
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
+    } catch (err) {
+      console.warn('Failed to parse response as JSON:', err);
+      return null;
+    }
   }
 
   // ----------------------------------------------------------------------------

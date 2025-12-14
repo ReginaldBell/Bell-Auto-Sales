@@ -299,7 +299,14 @@
    * Normalize vehicle data from API (snake_case -> camelCase, parse images_json)
    */
   function normalizeVehicle(v) {
-    const images = JSON.parse(v.images_json || '[]');
+    let images = [];
+    try {
+      const parsed = JSON.parse(v.images_json || '[]');
+      images = Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      console.warn('Failed to parse images_json:', err);
+      images = [];
+    }
     const firstImage = images[0] || '';
     
     return {
