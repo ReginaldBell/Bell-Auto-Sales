@@ -14,6 +14,7 @@ const fs = require("fs");
 const multer = require("multer");
 // const nodemailer = require("nodemailer"); // Replaced by SendGrid
 const { sendContactEmail } = require("./utils/sendEmail");
+const { cloudinary, uploadBufferToCloudinary } = require("./utils/cloudinary");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -95,19 +96,8 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 /* ======================
-   Multer Configuration
+   Multer Configuration (Memory Storage for Cloudinary)
 ====================== */
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `vehicle-${uniqueSuffix}${ext}`);
-  }
-});
-
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
   if (allowedTypes.includes(file.mimetype)) {
@@ -120,10 +110,10 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: { 
-    fileSize: 10 * 1024 * 1024, // 10 MB per file
+    fileSize: 8 * 1024 * 1024, // 8 MB per file (Cloudinary limit)
     files: 20 // Max 20 files
   }
 });
@@ -718,29 +708,41 @@ function parseVehicleFields(body) {
 }
 
 /**
- * Helper: Build images array from uploaded files + optional image_url
+ * Helper: Build images array from Cloudinary uploads + optional image_url
+ * Now stores objects with { url, publicId } for reliable deletion
+ * @param {Array} cloudinaryResults - Array of { url, publicId } from uploads
+ * @param {Object} body - Request body (may contain image_url)
+ * @param {Array} existingImages - Existing images to preserve if no new ones
+ * @returns {Array} Array of { url, publicId } objects
  */
-function buildImagesArray(files, body, existingImages = []) {
+function buildImagesArray(cloudinaryResults, body, existingImages = []) {
   let images = [];
 
-  // Add uploaded file paths
-  if (files && files.length > 0) {
-    images = files.map((f) => `/uploads/${f.filename}`);
+  // Add Cloudinary results from uploaded files (already {url, publicId} format)
+  if (cloudinaryResults && cloudinaryResults.length > 0) {
+    images = [...cloudinaryResults];
   }
 
-  // Add image_url if provided (single URL or JSON array string)
+  // Add image_url if provided (for external URLs without publicId)
   if (body.image_url) {
     try {
       const parsed = JSON.parse(body.image_url);
       if (Array.isArray(parsed)) {
-        images = images.concat(parsed);
+        // Could be array of URLs or array of {url, publicId}
+        parsed.forEach(item => {
+          if (typeof item === 'string' && item.trim()) {
+            images.push({ url: item.trim(), publicId: null });
+          } else if (item && item.url) {
+            images.push({ url: item.url, publicId: item.publicId || null });
+          }
+        });
       } else if (typeof parsed === "string" && parsed.trim()) {
-        images.push(parsed.trim());
+        images.push({ url: parsed.trim(), publicId: null });
       }
     } catch (e) {
       // Not JSON, treat as single URL
       if (typeof body.image_url === "string" && body.image_url.trim()) {
-        images.push(body.image_url.trim());
+        images.push({ url: body.image_url.trim(), publicId: null });
       }
     }
   }
@@ -751,6 +753,108 @@ function buildImagesArray(files, body, existingImages = []) {
   }
 
   return images;
+}
+
+/**
+ * Helper: Normalize images from DB (handles both old URL-only and new {url, publicId} format)
+ * @param {string} imagesJson - JSON string from images_json column
+ * @returns {Array} Array of { url, publicId } objects
+ */
+function normalizeImagesFromDb(imagesJson) {
+  try {
+    const parsed = JSON.parse(imagesJson || "[]");
+    if (!Array.isArray(parsed)) return [];
+    
+    return parsed.map(item => {
+      // Already in new format
+      if (item && typeof item === 'object' && item.url) {
+        return { url: item.url, publicId: item.publicId || null };
+      }
+      // Old format: just a URL string
+      if (typeof item === 'string') {
+        return { url: item, publicId: extractPublicIdFromUrl(item) };
+      }
+      return null;
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Helper: Extract public IDs from images array for deletion
+ * @param {Array} images - Array of { url, publicId } objects
+ * @returns {Array} Array of publicId strings (excluding nulls)
+ */
+function getPublicIdsFromImages(images) {
+  if (!Array.isArray(images)) return [];
+  return images
+    .map(img => img?.publicId || extractPublicIdFromUrl(img?.url))
+    .filter(Boolean);
+}
+
+/**
+ * Helper: Upload multiple files to Cloudinary
+ * @param {Array} files - Array of multer file objects (with buffer)
+ * @returns {Promise<Array<{url: string, publicId: string}>>} Array of { url, publicId } objects
+ */
+async function uploadFilesToCloudinary(files) {
+  if (!files || files.length === 0) return [];
+
+  const folder = process.env.CLOUDINARY_FOLDER || "bs-auto-sales";
+  const results = [];
+
+  for (const file of files) {
+    try {
+      const result = await uploadBufferToCloudinary(file.buffer, { folder });
+      results.push({
+        url: result.secure_url,
+        publicId: result.public_id
+      });
+      console.log(`[Cloudinary] Upload OK: ${result.public_id}`);
+    } catch (err) {
+      console.error(`[Cloudinary] Upload FAILED:`, {
+        message: err.message,
+        status: err?.http_code || err?.statusCode || null
+      });
+      throw err;
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Helper: Delete images from Cloudinary by public_id
+ * @param {Array} publicIds - Array of Cloudinary public_id strings
+ */
+async function deleteFromCloudinary(publicIds) {
+  if (!publicIds || publicIds.length === 0) return;
+
+  for (const publicId of publicIds) {
+    try {
+      await cloudinary.uploader.destroy(publicId);
+      console.log(`[Cloudinary] Deleted: ${publicId}`);
+    } catch (err) {
+      console.error(`[Cloudinary] Delete failed for ${publicId}:`, err.message);
+    }
+  }
+}
+
+/**
+ * Helper: Extract Cloudinary public_id from secure_url
+ * @param {string} url - Cloudinary secure_url
+ * @returns {string|null} public_id or null
+ */
+function extractPublicIdFromUrl(url) {
+  if (!url || !url.includes('cloudinary.com')) return null;
+  try {
+    // URL format: https://res.cloudinary.com/{cloud}/image/upload/{version}/{folder}/{public_id}.{ext}
+    const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)\.[^.]+$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
 }
 
 /* GET all vehicles */
@@ -786,62 +890,76 @@ const uploadFields = upload.fields([
   { name: 'image', maxCount: 20 }
 ]);
 
-app.post("/api/vehicles", requireAuth, mutationLimiter, uploadFields, doubleCsrfProtection, csrfErrorHandler, (req, res) => {
-  // Validate input
-  const validation = validateVehicleFields(req.body);
-  if (!validation.success) {
-    return res.status(400).json({
-      error: "Validation failed",
-      details: validation.errors
-    });
-  }
-
-  const v = parseVehicleFields(req.body);
-  // Combine files from both field names
-  const allFiles = [...(req.files?.images || []), ...(req.files?.image || [])];
-  const images = buildImagesArray(allFiles, req.body);
-
-  const stmt = `
-    INSERT INTO vehicles (
-      year, make, model, trim, price, mileage,
-      exterior_color, interior_color, fuel_type,
-      transmission, engine, drivetrain,
-      description, images_json, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  db.run(
-    stmt,
-    [
-      v.year,
-      v.make,
-      v.model,
-      v.trim,
-      v.price,
-      v.mileage,
-      v.exterior_color,
-      v.interior_color,
-      v.fuel_type,
-      v.transmission,
-      v.engine,
-      v.drivetrain,
-      v.description,
-      JSON.stringify(images),
-      v.status || 'available'
-    ],
-    function (err) {
-      if (err) {
-        console.error("Insert error:", err);
-        return res.status(500).json({ error: "Insert failed" });
-      }
-      auditLog("CREATE_VEHICLE", { id: this.lastID, make: v.make, model: v.model }, req);
-      res.status(201).json({ id: this.lastID });
+app.post("/api/vehicles", requireAuth, mutationLimiter, uploadFields, doubleCsrfProtection, csrfErrorHandler, async (req, res) => {
+  try {
+    // Validate input
+    const validation = validateVehicleFields(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: validation.errors
+      });
     }
-  );
+
+    const v = parseVehicleFields(req.body);
+    
+    // Combine files from both field names
+    const allFiles = [...(req.files?.images || []), ...(req.files?.image || [])];
+    
+    // Upload to Cloudinary (returns {url, publicId} objects)
+    let cloudinaryResults = [];
+    if (allFiles.length > 0) {
+      cloudinaryResults = await uploadFilesToCloudinary(allFiles);
+    }
+    
+    // Build images array with {url, publicId} for each image
+    const images = buildImagesArray(cloudinaryResults, req.body);
+
+    const stmt = `
+      INSERT INTO vehicles (
+        year, make, model, trim, price, mileage,
+        exterior_color, interior_color, fuel_type,
+        transmission, engine, drivetrain,
+        description, images_json, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    db.run(
+      stmt,
+      [
+        v.year,
+        v.make,
+        v.model,
+        v.trim,
+        v.price,
+        v.mileage,
+        v.exterior_color,
+        v.interior_color,
+        v.fuel_type,
+        v.transmission,
+        v.engine,
+        v.drivetrain,
+        v.description,
+        JSON.stringify(images),
+        v.status || 'available'
+      ],
+      function (err) {
+        if (err) {
+          console.error("Insert error:", err);
+          return res.status(500).json({ error: "Insert failed" });
+        }
+        auditLog("CREATE_VEHICLE", { id: this.lastID, make: v.make, model: v.model }, req);
+        res.status(201).json({ id: this.lastID });
+      }
+    );
+  } catch (err) {
+    console.error("[Cloudinary] Upload error:", err);
+    return res.status(500).json({ error: "Image upload failed", details: err.message });
+  }
 });
 
 /* UPDATE vehicle (supports multipart/form-data with images) */
-app.put("/api/vehicles/:id", requireAuth, mutationLimiter, uploadFields, doubleCsrfProtection, csrfErrorHandler, (req, res) => {
+app.put("/api/vehicles/:id", requireAuth, mutationLimiter, uploadFields, doubleCsrfProtection, csrfErrorHandler, async (req, res) => {
   const vehicleId = req.params.id;
 
   // Validate ID is numeric
@@ -858,27 +976,40 @@ app.put("/api/vehicles/:id", requireAuth, mutationLimiter, uploadFields, doubleC
     });
   }
 
-  // First, get existing images to preserve if no new ones uploaded
-  db.get("SELECT images_json FROM vehicles WHERE id = ?", [vehicleId], (err, row) => {
-    if (err) {
-      console.error("Lookup error:", err);
-      return res.status(500).json({ error: "Database read failed" });
-    }
+  try {
+    // First, get existing images to preserve if no new ones uploaded
+    const row = await new Promise((resolve, reject) => {
+      db.get("SELECT images_json FROM vehicles WHERE id = ?", [vehicleId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
     if (!row) {
       return res.status(404).json({ error: "Vehicle not found" });
     }
 
-    let existingImages = [];
-    try {
-      existingImages = JSON.parse(row.images_json || "[]");
-    } catch (e) {
-      existingImages = [];
-    }
+    // Normalize existing images to {url, publicId} format
+    const existingImages = normalizeImagesFromDb(row.images_json);
 
     const v = parseVehicleFields(req.body);
+    
     // Combine files from both field names
     const allFiles = [...(req.files?.images || []), ...(req.files?.image || [])];
-    const images = buildImagesArray(allFiles, req.body, existingImages);
+    
+    // Upload new files to Cloudinary (returns {url, publicId} objects)
+    let cloudinaryResults = [];
+    if (allFiles.length > 0) {
+      cloudinaryResults = await uploadFilesToCloudinary(allFiles);
+    }
+    
+    // Build new images array
+    const images = buildImagesArray(cloudinaryResults, req.body, existingImages);
+    
+    // Determine which old images are being replaced (for cleanup)
+    const oldPublicIds = getPublicIdsFromImages(existingImages);
+    const newPublicIds = new Set(getPublicIdsFromImages(images));
+    const publicIdsToDelete = oldPublicIds.filter(id => !newPublicIds.has(id));
 
     const stmt = `
       UPDATE vehicles SET
@@ -922,14 +1053,25 @@ app.put("/api/vehicles/:id", requireAuth, mutationLimiter, uploadFields, doubleC
           return res.status(404).json({ error: "Vehicle not found" });
         }
         auditLog("UPDATE_VEHICLE", { id: vehicleId, make: v.make, model: v.model }, req);
+        
+        // Clean up replaced Cloudinary images (non-blocking, after DB success)
+        if (publicIdsToDelete.length > 0) {
+          deleteFromCloudinary(publicIdsToDelete).catch(err => {
+            console.warn(`[Cloudinary] Old image cleanup warning: ${err.message}`);
+          });
+        }
+        
         res.json({ success: true });
       }
     );
-  });
+  } catch (err) {
+    console.error("[Cloudinary] Upload error:", err);
+    return res.status(500).json({ error: "Image upload failed", details: err.message });
+  }
 });
 
 /* DELETE vehicle */
-app.delete("/api/vehicles/:id", requireAuth, mutationLimiter, doubleCsrfProtection, csrfErrorHandler, (req, res) => {
+app.delete("/api/vehicles/:id", requireAuth, mutationLimiter, doubleCsrfProtection, csrfErrorHandler, async (req, res) => {
   const vehicleId = req.params.id;
 
   // Validate ID is numeric
@@ -937,20 +1079,53 @@ app.delete("/api/vehicles/:id", requireAuth, mutationLimiter, doubleCsrfProtecti
     return res.status(400).json({ error: "Invalid vehicle ID" });
   }
 
-  db.run(
-    "DELETE FROM vehicles WHERE id = ?",
-    [vehicleId],
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: "Delete failed" });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: "Vehicle not found" });
-      }
-      auditLog("DELETE_VEHICLE", { id: vehicleId }, req);
-      res.json({ success: true });
+  try {
+    // Get vehicle images before deleting (for Cloudinary cleanup)
+    const row = await new Promise((resolve, reject) => {
+      db.get("SELECT images_json FROM vehicles WHERE id = ?", [vehicleId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+
+    if (!row) {
+      return res.status(404).json({ error: "Vehicle not found" });
     }
-  );
+
+    // Delete from database
+    await new Promise((resolve, reject) => {
+      db.run("DELETE FROM vehicles WHERE id = ?", [vehicleId], function (err) {
+        if (err) reject(err);
+        else if (this.changes === 0) reject(new Error("Vehicle not found"));
+        else resolve();
+      });
+    });
+
+    auditLog("DELETE_VEHICLE", { id: vehicleId }, req);
+
+    // Clean up Cloudinary images (non-blocking, DB already deleted)
+    try {
+      const images = normalizeImagesFromDb(row.images_json);
+      const publicIds = getPublicIdsFromImages(images);
+      
+      if (publicIds.length > 0) {
+        // Don't await - let it run in background (DB delete already succeeded)
+        deleteFromCloudinary(publicIds).catch(err => {
+          console.warn(`[Cloudinary] Cleanup warning (vehicle ${vehicleId}): ${err.message}`);
+        });
+      }
+    } catch (parseErr) {
+      console.warn("[Cloudinary] Failed to parse images for cleanup:", parseErr.message);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete error:", err);
+    if (err.message === "Vehicle not found") {
+      return res.status(404).json({ error: "Vehicle not found" });
+    }
+    return res.status(500).json({ error: "Delete failed" });
+  }
 });
 
 /* ======================
