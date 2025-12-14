@@ -22,15 +22,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------------------------------
   // API helpers
   // ----------------------------------------------------------------------------
-  // Use current origin for reliable same-origin requests (works with proxies, ngrok, etc.)
-  const API_BASE = window.location.origin;
+  // Use relative paths for same-origin requests (avoids CORS issues entirely)
   const API = {
-    list: () => `${API_BASE}/api/vehicles`,
-    one: (id) => `${API_BASE}/api/vehicles/${encodeURIComponent(id)}`,
-    login: () => `${API_BASE}/api/admin/login`,
-    logout: () => `${API_BASE}/api/admin/logout`,
-    session: () => `${API_BASE}/api/admin/session`,
-    csrfToken: () => `${API_BASE}/api/admin/csrf-token`
+    list: () => `/api/vehicles`,
+    one: (id) => `/api/vehicles/${encodeURIComponent(id)}`,
+    login: () => `/api/admin/login`,
+    logout: () => `/api/admin/logout`,
+    session: () => `/api/admin/session`,
+    csrfToken: () => `/api/admin/csrf-token`
   };
 
   /**

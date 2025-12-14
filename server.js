@@ -142,45 +142,44 @@ app.use(helmet({
 /* ======================
    CORS Configuration
 ====================== */
-function getCorsOrigins() {
-  const envOrigins = process.env.CORS_ORIGIN;
-  const allowedOrigins = [];
-  
-  // Always allow localhost in development
-  if (!isProduction) {
-    allowedOrigins.push(
-      "http://localhost:8080",
-      "http://127.0.0.1:8080",
-      `http://localhost:${PORT}`,
-      `http://127.0.0.1:${PORT}`
-    );
+// Build allowed origins from environment variable
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map(o => o.trim())
+  .filter(Boolean);
+
+// Always allow localhost in development
+if (!isProduction) {
+  allowedOrigins.push(
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    `http://localhost:${PORT}`,
+    `http://127.0.0.1:${PORT}`
+  );
+}
+
+function corsOrigin(origin, callback) {
+  // Allow server-to-server or curl (no origin)
+  if (!origin) return callback(null, true);
+
+  // Allow configured origins
+  if (allowedOrigins.includes(origin)) {
+    return callback(null, true);
   }
-  
-  // Add environment-configured origins
-  if (envOrigins) {
-    const origins = envOrigins.split(",").map(o => o.trim()).filter(Boolean);
-    allowedOrigins.push(...origins);
-  }
-  
-  return allowedOrigins;
+
+  return callback(new Error("CORS not allowed"));
 }
 
 const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = getCorsOrigins();
-    // Allow requests with no origin (same-origin, mobile apps, curl)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("CORS not allowed"));
-    }
-  },
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  origin: corsOrigin,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
   credentials: true,
   maxAge: 86400 // 24 hours
 };
+
+// Handle preflight OPTIONS requests
+app.options("*", cors(corsOptions));
 
 app.use(cors(corsOptions));
 
