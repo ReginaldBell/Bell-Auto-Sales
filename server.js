@@ -113,7 +113,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter,
   limits: { 
-    fileSize: 8 * 1024 * 1024, // 8 MB per file (Cloudinary limit)
+    fileSize: 15 * 1024 * 1024, // 15 MB per file (allows larger phone photos)
     files: 20 // Max 20 files
   }
 });
@@ -794,7 +794,8 @@ function getPublicIdsFromImages(images) {
 }
 
 /**
- * Helper: Upload multiple files to Cloudinary
+ * Helper: Upload multiple files to Cloudinary with partial failure cleanup
+ * If any upload fails, deletes all successful uploads and throws error
  * @param {Array} files - Array of multer file objects (with buffer)
  * @returns {Promise<Array<{url: string, publicId: string}>>} Array of { url, publicId } objects
  */
@@ -804,19 +805,30 @@ async function uploadFilesToCloudinary(files) {
   const folder = process.env.CLOUDINARY_FOLDER || "bs-auto-sales";
   const results = [];
 
-  for (const file of files) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
     try {
       const result = await uploadBufferToCloudinary(file.buffer, { folder });
       results.push({
         url: result.secure_url,
         publicId: result.public_id
       });
-      console.log(`[Cloudinary] Upload OK: ${result.public_id}`);
+      console.log(`[Cloudinary] Upload OK (${i + 1}/${files.length}): ${result.public_id}`);
     } catch (err) {
-      console.error(`[Cloudinary] Upload FAILED:`, {
+      console.error(`[Cloudinary] Upload FAILED (${i + 1}/${files.length}):`, {
         message: err.message,
         status: err?.http_code || err?.statusCode || null
       });
+      
+      // Cleanup: delete all successful uploads before this failure
+      if (results.length > 0) {
+        const publicIdsToDelete = results.map(r => r.publicId).filter(Boolean);
+        console.log(`[Cloudinary] Cleaning up ${publicIdsToDelete.length} successful uploads due to failure...`);
+        await deleteFromCloudinary(publicIdsToDelete).catch(cleanupErr => {
+          console.error(`[Cloudinary] Cleanup error (non-fatal):`, cleanupErr.message);
+        });
+      }
+      
       throw err;
     }
   }
@@ -1229,7 +1241,7 @@ app.delete("/api/leads/:id", requireAuth, mutationLimiter, doubleCsrfProtection,
 // Handle Multer errors (file uploads)
 app.use((err, req, res, next) => {
   if (err.code === "LIMIT_FILE_SIZE") {
-    return res.status(413).json({ error: "File too large. Maximum size is 10MB." });
+    return res.status(413).json({ error: "Image too large. Please upload under 15MB per image." });
   }
   if (err.code === "INVALID_FILE_TYPE") {
     return res.status(415).json({ error: "Invalid file type. Only JPG, PNG, and WEBP are allowed." });
