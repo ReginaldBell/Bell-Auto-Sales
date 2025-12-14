@@ -12,7 +12,8 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
-const nodemailer = require("nodemailer");
+// const nodemailer = require("nodemailer"); // Replaced by SendGrid
+const { sendContactEmail } = require("./utils/sendEmail");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -75,115 +76,14 @@ function auditLog(action, details) {
 }
 
 /* ======================
-   Email Configuration (Nodemailer)
+   Email Configuration (SendGrid API)
 ====================== */
-const CONTACT_TO = process.env.CONTACT_TO || "bellboys08@yahoo.com";
-// Yahoo SMTP defaults: smtp.mail.yahoo.com:465 with TLS
-const SMTP_HOST = process.env.SMTP_HOST || "smtp.mail.yahoo.com";
-const SMTP_PORT = parseInt(process.env.SMTP_PORT, 10) || 465;
-const SMTP_SECURE = process.env.SMTP_SECURE !== "false"; // default true for port 465
-const SMTP_USER = process.env.SMTP_USER;
-const SMTP_PASS = process.env.SMTP_PASS;
-const EMAIL_DEBUG = process.env.EMAIL_DEBUG === "true";
-
-// Only create transporter if SMTP credentials are configured
-let emailTransporter = null;
-if (SMTP_USER && SMTP_PASS) {
-  emailTransporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_SECURE,
-    auth: {
-      user: SMTP_USER,
-      pass: SMTP_PASS
-    }
-  });
-  console.log(`Email notifications enabled (sending to ${CONTACT_TO} via ${SMTP_HOST}:${SMTP_PORT})`);
-  if (EMAIL_DEBUG) {
-    console.log("[EMAIL_DEBUG] Debug mode ON - will log email previews and SMTP responses");
-  }
+// Email is now handled via SendGrid in ./utils/sendEmail.js
+// Required env vars: SENDGRID_API_KEY, CONTACT_TO, FROM_EMAIL
+if (process.env.SENDGRID_API_KEY) {
+  console.log(`Email notifications enabled via SendGrid (sending to ${process.env.CONTACT_TO})`);
 } else {
-  console.log("Email notifications disabled (SMTP_USER/SMTP_PASS not configured)");
-}
-
-/**
- * Send contact form notification email (best-effort, non-blocking)
- * @param {Object} lead - The lead data
- * @returns {Promise<boolean>} - true if sent, false if failed or not configured
- */
-async function sendContactEmail(lead) {
-  if (!emailTransporter) {
-    if (EMAIL_DEBUG) {
-      console.log("[EMAIL_DEBUG] Skipping email - transporter not configured");
-    }
-    return false;
-  }
-
-  const { name, phone, message, vehicleTitle, leadId } = lead;
-  const vehicleInfo = vehicleTitle ? `\nVehicle Interest: ${vehicleTitle}` : "";
-  const subject = `New Lead from B&S Auto Sales - ${name}`;
-  const textBody = `New contact form submission:\n\nName: ${name}\nPhone: ${phone}${vehicleInfo}\n\nMessage:\n${message}\n\n---\nLead ID: ${leadId}\nSubmitted: ${new Date().toLocaleString()}`;
-  
-  const mailOptions = {
-    from: SMTP_USER,
-    to: CONTACT_TO,
-    subject,
-    text: textBody,
-    html: `
-      <h2>New Contact Form Submission</h2>
-      <table style="border-collapse: collapse; width: 100%; max-width: 600px;">
-        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Name</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${name}</td></tr>
-        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Phone</strong></td><td style="padding: 8px; border: 1px solid #ddd;"><a href="tel:${phone}">${phone}</a></td></tr>
-        ${vehicleTitle ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Vehicle Interest</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${vehicleTitle}</td></tr>` : ""}
-      </table>
-      <h3>Message</h3>
-      <p style="background: #f5f5f5; padding: 15px; border-radius: 4px;">${message.replace(/\n/g, "<br>")}</p>
-      <hr>
-      <p style="color: #666; font-size: 12px;">Lead ID: ${leadId} | Submitted: ${new Date().toLocaleString()}</p>
-    `
-  };
-
-  // Debug preview (before sending)
-  if (EMAIL_DEBUG) {
-    const preview = textBody.slice(0, 200) + (textBody.length > 200 ? "..." : "");
-    console.log(`[EMAIL_DEBUG] Composing email to: ${CONTACT_TO}`);
-    console.log(`[EMAIL_DEBUG] Subject: ${subject}`);
-    console.log(`[EMAIL_DEBUG] Body preview: ${preview}`);
-  }
-
-  try {
-    const info = await emailTransporter.sendMail(mailOptions);
-    
-    // Log based on debug mode
-    if (EMAIL_DEBUG) {
-      console.log(`[EMAIL_DEBUG] Email sent successfully`);
-      console.log(`[EMAIL_DEBUG] messageId: ${info.messageId}`);
-      console.log(`[EMAIL_DEBUG] accepted: ${JSON.stringify(info.accepted)}`);
-      console.log(`[EMAIL_DEBUG] rejected: ${JSON.stringify(info.rejected)}`);
-      if (info.response) {
-        console.log(`[EMAIL_DEBUG] SMTP response: ${info.response}`);
-      }
-    } else {
-      console.log(`Email sent: messageId=${info.messageId}`);
-    }
-    
-    auditLog("EMAIL_SENT", { to: CONTACT_TO, leadId, messageId: info.messageId });
-    return true;
-  } catch (err) {
-    // Safe error logging (no secrets)
-    const safeError = err.message || "Unknown error";
-    
-    if (EMAIL_DEBUG) {
-      console.log(`[EMAIL_DEBUG] Email failed`);
-      console.log(`[EMAIL_DEBUG] Error: ${safeError}`);
-      console.log(`[EMAIL_DEBUG] Error code: ${err.code || "none"}`);
-    } else {
-      console.log(`Email failed: ${safeError}`);
-    }
-    
-    auditLog("EMAIL_FAILED", { to: CONTACT_TO, leadId, error: safeError });
-    return false;
-  }
+  console.log("Email notifications disabled (SENDGRID_API_KEY not configured)");
 }
 
 /* ======================
@@ -1099,9 +999,14 @@ app.post("/api/contact", contactOriginCheck, contactLimiter, (req, res) => {
         ip: ipAddress
       });
       
-      // Send email notification (non-blocking, don't fail if email fails)
-      sendContactEmail({ name, phone, message, vehicleTitle, leadId })
-        .catch(err => console.error("Email notification error:", err));
+      // Send email notification via SendGrid (non-blocking, don't fail if email fails)
+      sendContactEmail({
+        name,
+        email: "", // Contact form doesn't collect email
+        phone,
+        message,
+        vehicle: vehicleTitle || "",
+      }).catch(err => console.error("Email notification error:", err));
       
       res.json({ success: true, message: "Message sent successfully" });
     }
