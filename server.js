@@ -182,8 +182,8 @@ const corsOptions = {
   maxAge: 86400 // 24 hours
 };
 
-// Handle preflight OPTIONS requests
-app.options("/*", cors(corsOptions));
+// Handle preflight OPTIONS requests (regex pattern for path-to-regexp compatibility)
+app.options(/.*/, cors(corsOptions));
 
 app.use(cors(corsOptions));
 
