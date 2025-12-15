@@ -1,3 +1,7 @@
+// Load environment variables from .env file BEFORE any other imports
+// This must be the first line to ensure all modules receive env vars
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -878,6 +882,18 @@ app.get("/api/vehicles", (req, res) => {
     if (err) {
       return res.status(500).json({ error: "Database read failed" });
     }
+    // [HEALTHCHECK][API RESPONSE] Log images data before sending to frontend
+    rows.forEach((row, idx) => {
+      let parsedImages = null;
+      try { parsedImages = row.images_json ? JSON.parse(row.images_json) : null; } catch (e) { parsedImages = 'PARSE_ERROR'; }
+      console.log(`[HEALTHCHECK][API RESPONSE] Vehicle ID=${row.id}:`, {
+        images_json_raw: row.images_json,
+        images_parsed: parsedImages,
+        isArray: Array.isArray(parsedImages),
+        elementsAreStrings: Array.isArray(parsedImages) ? parsedImages.every(img => typeof img === 'string' || (typeof img === 'object' && typeof img?.url === 'string')) : false,
+        looksLikeCloudinary: Array.isArray(parsedImages) ? parsedImages.some(img => (typeof img === 'string' ? img : img?.url)?.includes('cloudinary')) : false
+      });
+    });
     res.json(rows);
   });
 });
@@ -929,6 +945,16 @@ app.post("/api/vehicles", requireAuth, mutationLimiter, uploadFields, doubleCsrf
     
     // Build images array with {url, publicId} for each image
     const images = buildImagesArray(cloudinaryResults, req.body);
+
+    // [HEALTHCHECK][DB SAVE] Log images before INSERT
+    console.log('[HEALTHCHECK][DB SAVE] Before INSERT - images:', {
+      images: images,
+      isArray: Array.isArray(images),
+      length: images?.length,
+      elementsAreStrings: Array.isArray(images) ? images.every(img => typeof img === 'string' || (typeof img === 'object' && typeof img?.url === 'string')) : false,
+      looksLikeCloudinary: Array.isArray(images) ? images.some(img => (typeof img === 'string' ? img : img?.url)?.includes('cloudinary')) : false,
+      containsPlaceholder: Array.isArray(images) ? images.some(img => (typeof img === 'string' ? img : img?.url)?.includes('placeholder')) : false
+    });
 
     const stmt = `
       INSERT INTO vehicles (
@@ -1020,6 +1046,17 @@ app.put("/api/vehicles/:id", requireAuth, mutationLimiter, uploadFields, doubleC
     
     // Build new images array
     const images = buildImagesArray(cloudinaryResults, req.body, existingImages);
+
+    // [HEALTHCHECK][DB SAVE] Log images before UPDATE
+    console.log('[HEALTHCHECK][DB SAVE] Before UPDATE - images:', {
+      vehicleId: vehicleId,
+      images: images,
+      isArray: Array.isArray(images),
+      length: images?.length,
+      elementsAreStrings: Array.isArray(images) ? images.every(img => typeof img === 'string' || (typeof img === 'object' && typeof img?.url === 'string')) : false,
+      looksLikeCloudinary: Array.isArray(images) ? images.some(img => (typeof img === 'string' ? img : img?.url)?.includes('cloudinary')) : false,
+      containsPlaceholder: Array.isArray(images) ? images.some(img => (typeof img === 'string' ? img : img?.url)?.includes('placeholder')) : false
+    });
     
     // Determine which old images are being replaced (for cleanup)
     const oldPublicIds = getPublicIdsFromImages(existingImages);
@@ -1289,4 +1326,11 @@ app.use("/api", (req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
   console.log(`Environment: ${NODE_ENV}`);
+
+  // [TEMPORARY DIAGNOSTIC] Health check for Cloudinary env vars - remove after verification
+  console.log('[HEALTHCHECK][CLOUDINARY ENV]', {
+    CLOUDINARY_CLOUD_NAME: !!process.env.CLOUDINARY_CLOUD_NAME,
+    CLOUDINARY_API_KEY: !!process.env.CLOUDINARY_API_KEY,
+    CLOUDINARY_API_SECRET: !!process.env.CLOUDINARY_API_SECRET
+  });
 });

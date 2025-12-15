@@ -539,9 +539,19 @@
     const mainImageEl = document.getElementById('vehicle-main-image');
     if (mainImageEl) {
       const primary = car.images?.[0] || car.mainImage || PLACEHOLDER_URL;
+      // [HEALTHCHECK][DETAIL MAIN IMG] Log main image source
+      console.log(`[HEALTHCHECK][DETAIL MAIN IMG] Vehicle ID=${car.id}:`, {
+        'car.images': car.images,
+        'car.images?.[0]': car.images?.[0],
+        'car.mainImage': car.mainImage,
+        'finalSrc': primary,
+        'isPlaceholder': primary === PLACEHOLDER_URL,
+        'looksLikeCloudinary': primary?.includes('cloudinary')
+      });
       mainImageEl.src = primary;
       mainImageEl.alt = car.title || '';
       mainImageEl.onerror = function() {
+        console.log('[HEALTHCHECK][DETAIL ONERROR] Main image failed to load:', this.src);
         this.onerror = null;
         this.src = PLACEHOLDER_URL;
       };
@@ -604,8 +614,27 @@
     } else {
       sources = car.thumbnails || [];
     }
+
+    // [HEALTHCHECK][DETAIL THUMBNAILS] Log thumbnail sources
+    console.log(`[HEALTHCHECK][DETAIL THUMBNAILS] Vehicle ID=${car.id}:`, {
+      'car.images': car.images,
+      'car.mainImage': car.mainImage,
+      'car.thumbnails': car.thumbnails,
+      'computedSources': sources,
+      'sourcesCount': sources.length,
+      'allLookLikeCloudinary': sources.every(s => s?.includes('cloudinary')),
+      'anyPlaceholder': sources.some(s => s?.includes('placeholder') || s?.includes('icons8-image'))
+    });
+
     // Create thumbnail elements
     sources.forEach((url, index) => {
+      // [HEALTHCHECK][DETAIL THUMB RENDER] Log each thumbnail src
+      console.log(`[HEALTHCHECK][DETAIL THUMB RENDER] Thumbnail ${index}:`, {
+        url: url,
+        finalSrc: url || PLACEHOLDER_URL,
+        isPlaceholder: !url || url === PLACEHOLDER_URL
+      });
+
       const thumbnailDiv = document.createElement('div');
       thumbnailDiv.className = 'vehicle-thumbnail';
 
@@ -614,6 +643,7 @@
       img.alt = `${car.title} thumbnail ${index + 1}`;
       img.dataset.fullUrl = url || PLACEHOLDER_URL;
       img.onerror = function() {
+        console.log('[HEALTHCHECK][DETAIL THUMB ONERROR] Thumbnail failed to load:', this.src);
         this.onerror = null;
         this.src = PLACEHOLDER_URL;
         this.dataset.fullUrl = PLACEHOLDER_URL;

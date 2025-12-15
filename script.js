@@ -59,6 +59,19 @@
         throw new Error(`API error: ${response.status}`);
       }
       const data = await response.json();
+      // [HEALTHCHECK][FRONTEND RECEIVE] Log raw API response
+      console.log('[HEALTHCHECK][FRONTEND RECEIVE] Raw API data:', data);
+      data.forEach((v, idx) => {
+        let parsedImages = null;
+        try { parsedImages = v.images_json ? JSON.parse(v.images_json) : v.images; } catch (e) { parsedImages = 'PARSE_ERROR'; }
+        console.log(`[HEALTHCHECK][FRONTEND RECEIVE] Vehicle ID=${v.id}:`, {
+          images_json: v.images_json,
+          images: v.images,
+          parsed: parsedImages,
+          isArray: Array.isArray(parsedImages),
+          looksLikeCloudinary: Array.isArray(parsedImages) ? parsedImages.some(img => (typeof img === 'string' ? img : img?.url)?.includes('cloudinary')) : false
+        });
+      });
       if (!Array.isArray(data)) return [];
       return data.map(normalizeVehicle);
     } catch (err) {
@@ -127,6 +140,16 @@
       statusText = 'Pending';
     }
 
+    // [HEALTHCHECK][RENDER SRC] Log what image src will be used for this card
+    const imgSrc = car.images?.[0] || PLACEHOLDER_URL;
+    console.log(`[HEALTHCHECK][RENDER SRC] Card for ID=${car.id}:`, {
+      'car.images': car.images,
+      'car.images?.[0]': car.images?.[0],
+      'finalSrc': imgSrc,
+      'isPlaceholder': imgSrc === PLACEHOLDER_URL,
+      'looksLikeCloudinary': imgSrc?.includes('cloudinary')
+    });
+
     card.innerHTML = `
       <div class="vehicle-image-container car-image-wrap car-image-inner">
         <img 
@@ -134,7 +157,7 @@
           alt="${car.year} ${car.make} ${car.model}" 
           class="vehicle-image car-image"
           loading="lazy"
-          onerror="this.onerror=null;this.src='${PLACEHOLDER_URL}';"
+          onerror="console.log('[HEALTHCHECK][ONERROR] Image failed to load:', this.src); this.onerror=null;this.src='${PLACEHOLDER_URL}';"
         >
         <div class="vehicle-badges">
           <span class="badge ${statusClass}">${statusText}</span>
