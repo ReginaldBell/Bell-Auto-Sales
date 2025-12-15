@@ -6,6 +6,9 @@
 (function () {
   'use strict';
 
+  // Shared placeholder image for vehicles with no images
+  const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765778518/icons8-image-not-available-96_vgxpyr.png';
+
   /* ---------- helpers ---------- */
 
   /**
@@ -67,7 +70,7 @@
   function getPrimaryImage(car) {
     if (car.mainImage) return car.mainImage;
     if (Array.isArray(car.images) && car.images.length > 0) return car.images[0];
-    return 'https://via.placeholder.com/600x450?text=No+Image';
+    return PLACEHOLDER_URL;
   }
 
   function formatPrice(price) {
@@ -127,10 +130,11 @@
     card.innerHTML = `
       <div class="vehicle-image-container car-image-wrap car-image-inner">
         <img 
-          src="${getPrimaryImage(car)}" 
+          src="${car.images?.[0] || PLACEHOLDER_URL}" 
           alt="${car.year} ${car.make} ${car.model}" 
           class="vehicle-image car-image"
           loading="lazy"
+          onerror="this.onerror=null;this.src='${PLACEHOLDER_URL}';"
         >
         <div class="vehicle-badges">
           <span class="badge ${statusClass}">${statusText}</span>

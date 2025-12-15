@@ -4,6 +4,9 @@
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Shared placeholder image for vehicles with no images
+  const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765778518/icons8-image-not-available-96_vgxpyr.png';
+
   // ----------------------------------------------------------------------------
   // Admin State
   // ----------------------------------------------------------------------------
@@ -175,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
       features: Array.isArray(car.features) ? car.features : [],
 
       images,
-      mainImage: images[0] || '/placeholder.svg?height=240&width=400',
+      mainImage: images[0] || PLACEHOLDER_URL,
 
       exteriorColor: car.exterior_color ?? car.exteriorColor ?? '',
       interiorColor: car.interior_color ?? car.interiorColor ?? '',
@@ -476,7 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const imgTd = document.createElement('td');
       const thumb = document.createElement('img');
-      thumb.src = car.mainImage || (car.images && car.images[0]) || '/placeholder.svg?height=60&width=90';
+      thumb.src = car.mainImage || (car.images && car.images[0]) || PLACEHOLDER_URL;
       thumb.alt = `${car.make} ${car.model}`;
       thumb.style.width = '60px';
       thumb.style.height = '40px';
@@ -717,13 +720,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let images = [];
     if (car.images && car.images.length) images = car.images.slice();
     else if (car.mainImage) images = [car.mainImage];
-    else images = ['/placeholder.svg?height=240&width=400'];
+    else images = [PLACEHOLDER_URL];
 
     const inner = document.createElement('div');
     inner.className = 'car-image-inner vehicle-image-inner';
 
     const mainImg = document.createElement('img');
-    mainImg.src = images[0] || '/placeholder.svg?height=240&width=400';
+    mainImg.src = images[0] || PLACEHOLDER_URL;
     mainImg.alt = `${car.make || ''} ${car.model || ''}`;
     mainImg.style.width = '100%';
     mainImg.style.borderRadius = '8px';
@@ -817,7 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
           price: Number(fieldPrice.value) || 0,
           mileage: Number(fieldMileage.value) || 0,
           status: fieldStatus ? (fieldStatus.value || 'available') : 'available',
-          mainImage: '/placeholder.svg?height=240&width=400'
+          mainImage: PLACEHOLDER_URL
         };
         updatePreviewWithCar(car);
       });
@@ -895,7 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
           price: Number(fieldPrice.value) || 0,
           mileage: Number(fieldMileage.value) || 0,
           status: fieldStatus ? (fieldStatus.value || 'available') : 'available',
-          mainImage: '/placeholder.svg?height=240&width=400',
+          mainImage: PLACEHOLDER_URL,
           description: (fieldDescription.value || '').trim()
         };
         updatePreviewWithCar(car);

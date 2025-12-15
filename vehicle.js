@@ -3,6 +3,9 @@
 (function() {
   'use strict';
 
+  // Shared placeholder image for vehicles with no images
+  const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765778518/icons8-image-not-available-96_vgxpyr.png';
+
   // ==================== DATA MODEL ====================
   function loadCarsFromStorage() {
     try {
@@ -535,9 +538,13 @@
     // Set main image
     const mainImageEl = document.getElementById('vehicle-main-image');
     if (mainImageEl) {
-      const primary = car.mainImage || (car.images && car.images.length ? car.images[0] : (car.thumbnails && car.thumbnails[0])) || '';
-      mainImageEl.src = primary || '';
+      const primary = car.images?.[0] || car.mainImage || PLACEHOLDER_URL;
+      mainImageEl.src = primary;
       mainImageEl.alt = car.title || '';
+      mainImageEl.onerror = function() {
+        this.onerror = null;
+        this.src = PLACEHOLDER_URL;
+      };
     }
 
     // Render thumbnails
@@ -603,9 +610,14 @@
       thumbnailDiv.className = 'vehicle-thumbnail';
 
       const img = document.createElement('img');
-      img.src = url;
+      img.src = url || PLACEHOLDER_URL;
       img.alt = `${car.title} thumbnail ${index + 1}`;
-      img.dataset.fullUrl = url;
+      img.dataset.fullUrl = url || PLACEHOLDER_URL;
+      img.onerror = function() {
+        this.onerror = null;
+        this.src = PLACEHOLDER_URL;
+        this.dataset.fullUrl = PLACEHOLDER_URL;
+      };
 
       thumbnailDiv.appendChild(img);
       thumbnailsContainer.appendChild(thumbnailDiv);
