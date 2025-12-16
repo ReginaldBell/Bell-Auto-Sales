@@ -80,9 +80,28 @@
     }
   }
 
+
   function getPrimaryImage(car) {
     if (car.mainImage) return car.mainImage;
     if (Array.isArray(car.images) && car.images.length > 0) return car.images[0];
+    return PLACEHOLDER_URL;
+  }
+
+  function getImageUrlFromCar(car) {
+    let candidate = car?.mainImage ?? car?.images;
+
+    if (Array.isArray(candidate)) {
+      candidate = candidate[0];
+    }
+
+    if (candidate && typeof candidate === 'object') {
+      candidate = candidate.url || candidate.secure_url || '';
+    }
+
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate;
+    }
+
     return PLACEHOLDER_URL;
   }
 
@@ -140,20 +159,21 @@
       statusText = 'Pending';
     }
 
+
     // [HEALTHCHECK][RENDER SRC] Log what image src will be used for this card
-    const imgSrc = car.images?.[0] || PLACEHOLDER_URL;
+    const imgSrc = getImageUrlFromCar(car);
     console.log(`[HEALTHCHECK][RENDER SRC] Card for ID=${car.id}:`, {
       'car.images': car.images,
       'car.images?.[0]': car.images?.[0],
       'finalSrc': imgSrc,
       'isPlaceholder': imgSrc === PLACEHOLDER_URL,
-      'looksLikeCloudinary': imgSrc?.includes('cloudinary')
+      'looksLikeCloudinary': typeof imgSrc === 'string' && imgSrc.includes('cloudinary')
     });
 
     card.innerHTML = `
       <div class="vehicle-image-container car-image-wrap car-image-inner">
         <img 
-          src="${car.images?.[0] || PLACEHOLDER_URL}" 
+          src="${imgSrc}" 
           alt="${car.year} ${car.make} ${car.model}" 
           class="vehicle-image car-image"
           loading="lazy"
@@ -286,7 +306,7 @@
       <div class="modal-content">
         <button class="modal-close" aria-label="Close modal">&times;</button>
         <div class="modal-body">
-          <img src="${getPrimaryImage(car)}" alt="${car.year} ${car.make} ${car.model}" class="modal-image">
+          <img src="${getImageUrlFromCar(car)}" alt="${car.year} ${car.make} ${car.model}" class="modal-image">
           <div class="modal-details">
             <h2>${car.year} ${stripPriceLikeTokens(car.make)} ${stripPriceLikeTokens(car.model)}${car.trim ? ' ' + stripPriceLikeTokens(car.trim) : ''}</h2>
             <p class="modal-price">${formatPrice(car.price)}</p>
