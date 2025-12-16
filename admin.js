@@ -28,69 +28,72 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------------------------------
   // Use relative paths for same-origin requests (avoids CORS issues entirely)
   const API = {
+    list: () => '/api/vehicles',
+    one: (id) => `/api/vehicles/${id}`,
+    login: () => '/api/admin/login',
+    logout: () => '/api/admin/logout',
+    session: () => '/api/admin/session',
+    csrf: () => '/api/admin/csrf-token'
+  };
+
+  // ----------------------------------------------------------------------------
   // Payload builder (UI -> API)
-  // Core: only send fields that the API actually supports.
-  // Images: send SMALL payload only (URLs / json arrays of URLs). No base64.
   // ----------------------------------------------------------------------------
   function buildPayloadForApi(carData) {
-function buildPayloadForApi(carData) {
-  const keys = AdminState.apiKeys;
-  const casing = AdminState.casing;
-  const imagesStorage = AdminState.imagesStorage;
+    const keys = AdminState.apiKeys;
+    const casing = AdminState.casing;
+    const imagesStorage = AdminState.imagesStorage;
 
-  const payload = {};
+    const payload = {};
 
-  function maybeSet(k, v) {
-    if (keys && !keys.has(k)) return;
-    payload[k] = v;
-  }
-
-  const schemaUnknown = !keys;
-
-  function setCore(k, v) {
-    if (schemaUnknown) payload[k] = v;
-    else maybeSet(k, v);
-  }
-
-  const kExterior = casing === 'camel' ? 'exteriorColor' : 'exterior_color';
-  const kInterior = casing === 'camel' ? 'interiorColor' : 'interior_color';
-  const kFuel = casing === 'camel' ? 'fuelType' : 'fuel_type';
-
-  setCore('year', Number(carData.year) || 0);
-  setCore('make', carData.make || '');
-  setCore('model', carData.model || '');
-  setCore('trim', carData.trim || '');
-  setCore('price', Number(carData.price) || 0);
-  setCore('mileage', Number(carData.mileage) || 0);
-  setCore('description', carData.description || '');
-
-  if (schemaUnknown || (keys && keys.has(kExterior))) maybeSet(kExterior, carData.exteriorColor || '');
-  if (schemaUnknown || (keys && keys.has(kInterior))) maybeSet(kInterior, carData.interiorColor || '');
-  if (schemaUnknown || (keys && keys.has(kFuel))) maybeSet(kFuel, carData.fuelType || '');
-
-  if (schemaUnknown || (keys && keys.has('transmission'))) maybeSet('transmission', carData.transmission || '');
-  if (schemaUnknown || (keys && keys.has('engine'))) maybeSet('engine', carData.engine || '');
-  if (schemaUnknown || (keys && keys.has('drivetrain'))) maybeSet('drivetrain', carData.drivetrain || '');
-
-  // Only include images fields if admin intentionally changed images
-  if (AdminState.imagesTouched === true) {
-    const imagesArr = Array.isArray(carData.images) ? carData.images.filter(Boolean) : [];
-
-    if (imagesStorage === 'images_json') {
-      if (schemaUnknown) payload.images_json = JSON.stringify(imagesArr);
-      else maybeSet('images_json', JSON.stringify(imagesArr));
-    } else if (imagesStorage === 'images') {
-      if (schemaUnknown) payload.images = imagesArr;
-      else maybeSet('images', imagesArr);
-    } else if (imagesStorage === 'image_url') {
-      const first = imagesArr[0] || '';
-      if (schemaUnknown) payload.image_url = first;
-      else maybeSet('image_url', first);
+    function maybeSet(k, v) {
+      if (keys && !keys.has(k)) return;
+      payload[k] = v;
     }
-  }
 
-  return payload;
-}
+    const schemaUnknown = !keys;
+
+    function setCore(k, v) {
+      if (schemaUnknown) payload[k] = v;
+      else maybeSet(k, v);
+    }
+
+    const kExterior = casing === 'camel' ? 'exteriorColor' : 'exterior_color';
+    const kInterior = casing === 'camel' ? 'interiorColor' : 'interior_color';
+    const kFuel = casing === 'camel' ? 'fuelType' : 'fuel_type';
+
+    setCore('year', Number(carData.year) || 0);
+    setCore('make', carData.make || '');
+    setCore('model', carData.model || '');
+    setCore('trim', carData.trim || '');
+    setCore('price', Number(carData.price) || 0);
+    setCore('mileage', Number(carData.mileage) || 0);
+    setCore('description', carData.description || '');
+
+    if (schemaUnknown || keys.has(kExterior)) maybeSet(kExterior, carData.exteriorColor || '');
+    if (schemaUnknown || keys.has(kInterior)) maybeSet(kInterior, carData.interiorColor || '');
+    if (schemaUnknown || keys.has(kFuel)) maybeSet(kFuel, carData.fuelType || '');
+
+    if (schemaUnknown || keys.has('transmission')) maybeSet('transmission', carData.transmission || '');
+    if (schemaUnknown || keys.has('engine')) maybeSet('engine', carData.engine || '');
+    if (schemaUnknown || keys.has('drivetrain')) maybeSet('drivetrain', carData.drivetrain || '');
+
+    // Only include image fields if admin explicitly touched images
+    if (AdminState.imagesTouched === true) {
+      const imagesArr = Array.isArray(carData.images)
+        ? carData.images.filter(Boolean)
+        : [];
+
+      if (imagesStorage === 'images_json') {
+        payload.images_json = JSON.stringify(imagesArr);
+      } else if (imagesStorage === 'images') {
+        payload.images = imagesArr;
+      } else if (imagesStorage === 'image_url') {
+        payload.image_url = imagesArr[0] || '';
+      }
+    }
+    return payload;
+  }
 
   async function fetchCarsAndRender() {
     try {
@@ -392,6 +395,7 @@ function buildPayloadForApi(carData) {
     if (!addCarForm) return;
     addCarForm.reset();
     AdminState.editingCarId = null;
+    AdminState.imagesTouched = false;
 
     const submitBtn = addCarForm.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.textContent = 'Add Car';
@@ -509,6 +513,7 @@ function buildPayloadForApi(carData) {
     if (!car) return;
 
     AdminState.editingCarId = carId;
+    AdminState.imagesTouched = false;
 
     fieldYear.value = car.year || '';
     fieldMake.value = car.make || '';
@@ -680,6 +685,7 @@ function buildPayloadForApi(carData) {
         }
 
         setImageError('');
+        AdminState.imagesTouched = true;
         const car = {
           year: Number(fieldYear.value) || 0,
           make: (fieldMake.value || '').trim(),
@@ -706,6 +712,7 @@ function buildPayloadForApi(carData) {
             return;
           }
           setImageError('');
+          AdminState.imagesTouched = true;
 
           // Show preview of first selected file
           const file = fieldImage.files[0];
