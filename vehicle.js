@@ -1,3 +1,29 @@
+function normalizeImageArray(input) {
+  let arr = [];
+  if (Array.isArray(input)) {
+    arr = input;
+  } else if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input);
+      if (Array.isArray(parsed)) arr = parsed;
+      else if (typeof parsed === 'object' && parsed !== null) arr = [parsed];
+      else if (typeof parsed === 'string') arr = [parsed];
+    } catch {
+      if (input.trim()) arr = [input.trim()];
+      else return [];
+    }
+  } else if (input && typeof input === 'object') {
+    arr = [input];
+  } else {
+    return [];
+  }
+  // Only return string URLs
+  return arr.map(val => {
+    if (typeof val === 'string' && val.trim()) return val.trim();
+    if (val && typeof val === 'object') return val.url || val.secure_url || '';
+    return '';
+  }).filter(Boolean);
+}
 
 const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765778518/icons8-image-not-available-96_vgxpyr.png';
 
@@ -309,16 +335,16 @@ const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765
    * Normalize vehicle data from API (snake_case -> camelCase, parse images_json)
    */
   function normalizeVehicle(v) {
-    let images = [];
-    try {
-      const parsed = JSON.parse(v.images_json || '[]');
-      images = Array.isArray(parsed) ? parsed : [];
-    } catch (err) {
-      console.warn('Failed to parse images_json:', err);
-      images = [];
+    // Prefer v.images if present, else v.images_json
+    const images = normalizeImageArray(v.images || v.images_json);
+    // Healthcheck: log normalized images array length and first URL (once per page load)
+    if (!window.__BAS_IMAGES_HEALTHCHECK_LOGGED) {
+      console.log('[HEALTHCHECK][NORMALIZED IMAGES]', {
+        length: images.length,
+        first: images[0] || null
+      });
+      window.__BAS_IMAGES_HEALTHCHECK_LOGGED = true;
     }
-    const firstImage = images.length > 0 ? getImageUrl(images[0]) : '';
-    
     return {
       id: v.id,
       title: `${v.year} ${stripPriceLikeTokens(v.make)} ${stripPriceLikeTokens(v.model)}${v.trim ? ' ' + stripPriceLikeTokens(v.trim) : ''}`,
@@ -329,7 +355,7 @@ const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765
       price: v.price,
       mileage: v.mileage,
       status: v.status || 'Available',
-      mainImage: firstImage,
+      mainImage: images[0] || '',
       images: images,
       thumbnails: images,
       specs: {
@@ -510,6 +536,10 @@ const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765
    * @param {object} car - Car object
    */
   function renderVehicle(car) {
+        // Contract guard: warn if images contains non-strings
+        if (Array.isArray(car.images) && car.images.some(img => typeof img !== 'string')) {
+          console.warn('[VEHICLE][CONTRACT DRIFT] images contain non-strings', car.images);
+        }
     // Set title
     const titleEl = document.getElementById('vehicle-title');
     if (titleEl) {
@@ -545,17 +575,19 @@ const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765
     // Set main image
     const mainImageEl = document.getElementById('vehicle-main-image');
     if (mainImageEl) {
-      const primary = car.images?.[0] || car.mainImage;
+      // Prefer car.mainImage, fallback to car.images[0]
+      const candidate = car.mainImage || (car.images && car.images[0]);
+      const resolved = getImageUrl(candidate);
       // [HEALTHCHECK][DETAIL MAIN IMG] Log main image source
       console.log(`[HEALTHCHECK][DETAIL MAIN IMG] Vehicle ID=${car.id}:`, {
         'car.images': car.images,
-        'car.images?.[0]': car.images?.[0],
         'car.mainImage': car.mainImage,
-        'finalSrc': primary,
-        'isPlaceholder': primary === PLACEHOLDER_URL,
-        'looksLikeCloudinary': typeof primary === 'string' && primary.includes('cloudinary')
+        'candidate': candidate,
+        'resolved': resolved,
+        'isPlaceholder': resolved === PLACEHOLDER_URL,
+        'looksLikeCloudinary': typeof resolved === 'string' && resolved.includes('cloudinary')
       });
-      mainImageEl.src = primary || PLACEHOLDER_URL;
+      mainImageEl.src = resolved;
       mainImageEl.alt = car.title || '';
       mainImageEl.onerror = function() {
         console.log('[HEALTHCHECK][DETAIL ONERROR] Main image failed to load:', this.src);

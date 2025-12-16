@@ -1,3 +1,35 @@
+  function getImageUrl(val) {
+    if (typeof val === 'string' && val.trim()) return val.trim();
+    if (val && typeof val === 'object') return val.url || val.secure_url || '';
+    return '';
+  }
+
+  function normalizeImageArray(input) {
+    let arr = [];
+    if (Array.isArray(input)) {
+      arr = input;
+    } else if (typeof input === 'string') {
+      try {
+        const parsed = JSON.parse(input);
+        if (Array.isArray(parsed)) arr = parsed;
+        else if (typeof parsed === 'object' && parsed !== null) arr = [parsed];
+        else if (typeof parsed === 'string') arr = [parsed];
+      } catch {
+        if (input.trim()) arr = [input.trim()];
+        else return [];
+      }
+    } else if (input && typeof input === 'object') {
+      arr = [input];
+    } else {
+      return [];
+    }
+    // Only return string URLs
+    return arr.map(val => {
+      if (typeof val === 'string' && val.trim()) return val.trim();
+      if (val && typeof val === 'object') return val.url || val.secure_url || '';
+      return '';
+    }).filter(Boolean);
+  }
 /* ==============================
    HOMEPAGE INVENTORY + UI
    B & S Auto Sales
@@ -15,19 +47,16 @@
    * Convert API response (snake_case) to frontend format (camelCase)
    */
   function normalizeVehicle(v) {
-    let images = [];
-    if (v.images_json) {
-      try {
-        images = JSON.parse(v.images_json);
-        if (!Array.isArray(images)) images = [];
-      } catch (e) {
-        console.warn('Failed to parse images_json:', e);
-        images = [];
-      }
-    } else if (Array.isArray(v.images)) {
-      images = v.images;
+    // Prefer v.images if present, else v.images_json
+    const images = normalizeImageArray(v.images || v.images_json);
+    // Healthcheck: log normalized images array length and first URL (once per page load)
+    if (!window.__BAS_IMAGES_HEALTHCHECK_LOGGED) {
+      console.log('[HEALTHCHECK][NORMALIZED IMAGES]', {
+        length: images.length,
+        first: images[0] || null
+      });
+      window.__BAS_IMAGES_HEALTHCHECK_LOGGED = true;
     }
-
     return {
       id: v.id,
       year: v.year,
@@ -45,7 +74,7 @@
       drivetrain: v.drivetrain || '',
       description: v.description || '',
       images: images,
-      mainImage: images.length > 0 ? images[0] : ''
+      mainImage: images[0] || ''
     };
   }
 
@@ -142,6 +171,10 @@
    * Available vehicles show a green "AVAILABLE" badge.
    */
   function createCard(car) {
+        // Contract guard: warn if images contains non-strings
+        if (Array.isArray(car.images) && car.images.some(img => typeof img !== 'string')) {
+          console.warn('[INVENTORY][CONTRACT DRIFT] images contain non-strings', car.images);
+        }
     const card = document.createElement('div');
     card.className = 'vehicle-card car-card';
     card.dataset.carId = car.id;
