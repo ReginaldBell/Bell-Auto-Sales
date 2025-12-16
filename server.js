@@ -876,8 +876,9 @@ function extractPublicIdFromUrl(url) {
   }
 }
 
-/* GET all vehicles */
-app.get("/api/vehicles", (req, res) => {
+
+// Shared handler for listing all vehicles
+const listVehicles = (req, res) => {
   db.all("SELECT * FROM vehicles ORDER BY created_at DESC", [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: "Database read failed" });
@@ -896,7 +897,9 @@ app.get("/api/vehicles", (req, res) => {
     });
     res.json(rows);
   });
-});
+};
+app.get("/api/vehicles", listVehicles);
+app.get("/api/cars", listVehicles);
 
 /* GET vehicle by ID */
 app.get("/api/vehicles/:id", (req, res) => {
