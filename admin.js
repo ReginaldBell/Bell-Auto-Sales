@@ -36,6 +36,21 @@ document.addEventListener('DOMContentLoaded', () => {
     csrf: () => '/api/admin/csrf-token'
   };
 
+// Helper: fetch JSON with credentials and error handling
+async function requestJson(url, options = {}) {
+  const res = await fetch(url, {
+    credentials: 'include',
+    ...options
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+
+  return res.json();
+}
+
   // ----------------------------------------------------------------------------
   // Payload builder (UI -> API)
   // ----------------------------------------------------------------------------
