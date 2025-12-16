@@ -110,6 +110,61 @@ async function requestJson(url, options = {}) {
     return payload;
   }
 
+  // Detect API schema from a row
+  function detectApiSchemaFromRow(row) {
+    AdminState.apiKeys = new Set(Object.keys(row));
+    if ('exteriorColor' in row || 'interiorColor' in row || 'fuelType' in row) {
+      AdminState.casing = 'camel';
+    } else if ('exterior_color' in row || 'interior_color' in row || 'fuel_type' in row) {
+      AdminState.casing = 'snake';
+    } else {
+      AdminState.casing = 'unknown';
+    }
+    if ('images_json' in row) {
+      AdminState.imagesStorage = 'images_json';
+    } else if ('images' in row) {
+      AdminState.imagesStorage = 'images';
+    } else if ('image_url' in row) {
+      AdminState.imagesStorage = 'image_url';
+    } else {
+      AdminState.imagesStorage = 'none';
+    }
+  }
+
+  // Normalize car row from API for UI
+  function normalizeCarFromApi(row) {
+    const casing = AdminState.casing;
+    const imagesStorage = AdminState.imagesStorage;
+    const car = { ...row };
+    // Normalize color/fuel fields
+    car.exteriorColor = casing === 'camel' ? row.exteriorColor : row.exterior_color;
+    car.interiorColor = casing === 'camel' ? row.interiorColor : row.interior_color;
+    car.fuelType = casing === 'camel' ? row.fuelType : row.fuel_type;
+    // Normalize images
+    let images = [];
+    if (imagesStorage === 'images_json') {
+      try {
+        images = JSON.parse(row.images_json || '[]');
+      } catch {
+        images = [];
+      }
+    } else if (imagesStorage === 'images') {
+      images = Array.isArray(row.images) ? row.images : [];
+    } else if (imagesStorage === 'image_url') {
+      images = row.image_url ? [row.image_url] : [];
+    }
+    car.images = images;
+    // mainImage: string URL
+    if (images.length > 0) {
+      if (typeof images[0] === 'string') car.mainImage = images[0];
+      else if (images[0] && typeof images[0] === 'object' && images[0].url) car.mainImage = images[0].url;
+      else car.mainImage = '';
+    } else {
+      car.mainImage = '';
+    }
+    return car;
+  }
+
   async function fetchCarsAndRender() {
     try {
       const list = await requestJson(API.list(), { method: 'GET' });
@@ -224,8 +279,8 @@ async function requestJson(url, options = {}) {
       const res = await fetch(API.login(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-        credentials: 'include'
+        credentials: 'include',
+        body: JSON.stringify({ password: passwordInput.value })
       });
 
       // Handle rate limiting (429)
@@ -736,7 +791,7 @@ async function requestJson(url, options = {}) {
             const car = {
               year: Number(fieldYear.value) || 0,
               make: (fieldMake.value || '').trim(),
-              model: (fieldModel.value || '').trim(),
+              model: (fieldModel.value) || '',
               price: Number(fieldPrice.value) || 0,
               mileage: Number(fieldMileage.value) || 0,
               status: fieldStatus ? (fieldStatus.value || 'available') : 'available',
