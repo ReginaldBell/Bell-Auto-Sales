@@ -1048,7 +1048,30 @@ app.put("/api/vehicles/:id", requireAuth, mutationLimiter, uploadFields, doubleC
     }
     
     // Build new images array
-    const images = buildImagesArray(cloudinaryResults, req.body, existingImages);
+    let images = buildImagesArray(cloudinaryResults, req.body, existingImages);
+
+    // Defense-in-depth guard: preserve images unless explicit intent to wipe
+    const removeImages =
+      req.body?.remove_images === true || req.body?.remove_images === 'true';
+
+    const bodyImagesJson = req.body?.images_json;
+    const bodyImagesArr = req.body?.images;
+
+    const attemptsEmptyImagesJson =
+      typeof bodyImagesJson !== 'undefined' &&
+      (bodyImagesJson === null ||
+        bodyImagesJson === '' ||
+        bodyImagesJson === '[]' ||
+        (typeof bodyImagesJson === 'string' && bodyImagesJson.trim() === '[]'));
+
+    const attemptsEmptyImagesArr =
+      Array.isArray(bodyImagesArr) && bodyImagesArr.length === 0;
+
+    const attemptsToWipeImages = attemptsEmptyImagesJson || attemptsEmptyImagesArr;
+
+    if (allFiles.length === 0 && attemptsToWipeImages && !removeImages) {
+      images = existingImages;
+    }
 
     // [HEALTHCHECK][DB SAVE] Log images before UPDATE
     console.log('[HEALTHCHECK][DB SAVE] Before UPDATE - images:', {
@@ -1060,7 +1083,7 @@ app.put("/api/vehicles/:id", requireAuth, mutationLimiter, uploadFields, doubleC
       looksLikeCloudinary: Array.isArray(images) ? images.some(img => (typeof img === 'string' ? img : img?.url)?.includes('cloudinary')) : false,
       containsPlaceholder: Array.isArray(images) ? images.some(img => (typeof img === 'string' ? img : img?.url)?.includes('placeholder')) : false
     });
-    
+
     // Determine which old images are being replaced (for cleanup)
     const oldPublicIds = getPublicIdsFromImages(existingImages);
     const newPublicIds = new Set(getPublicIdsFromImages(images));
@@ -1108,14 +1131,12 @@ app.put("/api/vehicles/:id", requireAuth, mutationLimiter, uploadFields, doubleC
           return res.status(404).json({ error: "Vehicle not found" });
         }
         auditLog("UPDATE_VEHICLE", { id: vehicleId, make: v.make, model: v.model }, req);
-        
         // Clean up replaced Cloudinary images (non-blocking, after DB success)
         if (publicIdsToDelete.length > 0) {
           deleteFromCloudinary(publicIdsToDelete).catch(err => {
             console.warn(`[Cloudinary] Old image cleanup warning: ${err.message}`);
           });
         }
-        
         res.json({ success: true });
       }
     );

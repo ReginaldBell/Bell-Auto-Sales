@@ -19,7 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Detected API/DB shape from GET /api/vehicles (first row)
     apiKeys: null,              // Set<string>
     imagesStorage: 'images',    // 'images' | 'images_json' | 'image_url' | 'none'
-    casing: 'snake'             // 'snake' | 'camel' | 'unknown'
+    casing: 'snake',            // 'snake' | 'camel' | 'unknown'
+    imagesTouched: false        // Track if images were intentionally changed
   };
 
   // ----------------------------------------------------------------------------
@@ -27,212 +28,52 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------------------------------
   // Use relative paths for same-origin requests (avoids CORS issues entirely)
   const API = {
-    list: () => `/api/vehicles`,
-    one: (id) => `/api/vehicles/${encodeURIComponent(id)}`,
-    login: () => `/api/admin/login`,
-    logout: () => `/api/admin/logout`,
-    session: () => `/api/admin/session`,
-    csrfToken: () => `/api/admin/csrf-token`
-  };
-
-  /**
-   * Fetch CSRF token from server (required before mutations)
-   */
-  async function fetchCsrfToken() {
-    try {
-      const res = await fetch(API.csrfToken(), { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        AdminState.csrfToken = data.csrfToken;
-        return data.csrfToken;
-      }
-    } catch (err) {
-      console.error('Failed to fetch CSRF token:', err);
-    }
-    return null;
-  }
-
-  /**
-   * Make authenticated request with CSRF token
-   */
-  async function authRequest(url, options = {}) {
-    // Ensure we have a CSRF token for mutations
-    if (['POST', 'PUT', 'DELETE'].includes(options.method?.toUpperCase())) {
-      if (!AdminState.csrfToken) {
-        await fetchCsrfToken();
-      }
-    }
-
-    const headers = {
-      ...(options.headers || {}),
-    };
-
-    // Add CSRF token header for mutations (unless it's FormData)
-    if (AdminState.csrfToken && ['POST', 'PUT', 'DELETE'].includes(options.method?.toUpperCase())) {
-      headers['X-CSRF-Token'] = AdminState.csrfToken;
-    }
-
-    const res = await fetch(url, {
-      ...options,
-      headers,
-      credentials: 'include' // Always send cookies
-    });
-
-    // Handle auth errors
-    if (res.status === 401) {
-      AdminState.isLoggedIn = false;
-      AdminState.csrfToken = null;
-      showLoginScreen();
-      throw new Error('Session expired. Please log in again.');
-    }
-
-    // Handle CSRF errors - refresh token and retry once
-    if (res.status === 403) {
-      const text = await res.text();
-      if (text.includes('CSRF') || text.includes('csrf')) {
-          console.log('[Auth] CSRF token rejected, refreshing and retrying...');
-          await fetchCsrfToken();
-          // Retry once with new token
-          const retryHeaders = { ...headers, 'X-CSRF-Token': AdminState.csrfToken };
-          const retryRes = await fetch(url, { ...options, headers: retryHeaders, credentials: 'include' });
-        return retryRes;
-      }
-      throw new Error(`HTTP 403: ${text}`);
-    }
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`);
-    }
-
-    return res;
-  }
-
-  async function requestJson(url, options = {}) {
-    const res = await authRequest(url, options);
-    
-    const ct = res.headers.get('content-type') || '';
-    if (ct.includes('application/json')) return res.json();
-    const text = await res.text().catch(() => '');
-    if (!text) return null;
-    try {
-      return JSON.parse(text);
-    } catch (err) {
-      console.warn('Failed to parse response as JSON:', err);
-      return null;
-    }
-  }
-
-  // ----------------------------------------------------------------------------
-  // Schema detection (prevents guessing)
-  // ----------------------------------------------------------------------------
-  function detectApiSchemaFromRow(row) {
-    if (!row || typeof row !== 'object') return;
-
-    const keys = new Set(Object.keys(row));
-    AdminState.apiKeys = keys;
-
-    const hasSnake = keys.has('fuel_type') || keys.has('exterior_color') || keys.has('interior_color');
-    const hasCamel = keys.has('fuelType') || keys.has('exteriorColor') || keys.has('interiorColor');
-    AdminState.casing = hasSnake ? 'snake' : (hasCamel ? 'camel' : 'unknown');
-
-    if (keys.has('images_json')) AdminState.imagesStorage = 'images_json';
-    else if (keys.has('images')) AdminState.imagesStorage = 'images';
-    else if (keys.has('image_url')) AdminState.imagesStorage = 'image_url';
-    else AdminState.imagesStorage = 'none';
-  }
-
-  // ----------------------------------------------------------------------------
-  // Normalization helpers (API -> UI)
-  // ----------------------------------------------------------------------------
-  function parseImagesFromApiRow(car) {
-    if (Array.isArray(car.images)) return car.images;
-
-    if (typeof car.images_json === 'string' && car.images_json.trim()) {
-      try {
-        const arr = JSON.parse(car.images_json);
-        return Array.isArray(arr) ? arr : [];
-      } catch {
-        return [];
-      }
-    }
-
-    if (typeof car.image_url === 'string' && car.image_url.trim()) return [car.image_url.trim()];
-    return [];
-  }
-
-  function normalizeCarFromApi(car) {
-    const images = parseImagesFromApiRow(car);
-    return {
-      id: car.id,
-      year: car.year ?? '',
-      make: car.make ?? '',
-      model: car.model ?? '',
-      trim: car.trim ?? '',
-      price: car.price ?? 0,
-      mileage: car.mileage ?? 0,
-
-      status: car.status ?? 'available',
-
-      description: car.description ?? '',
-      features: Array.isArray(car.features) ? car.features : [],
-
-      images,
-      mainImage: images[0] || PLACEHOLDER_URL,
-
-      exteriorColor: car.exterior_color ?? car.exteriorColor ?? '',
-      interiorColor: car.interior_color ?? car.interiorColor ?? '',
-      fuelType: car.fuel_type ?? car.fuelType ?? '',
-      transmission: car.transmission ?? '',
-      engine: car.engine ?? '',
-      drivetrain: car.drivetrain ?? ''
-    };
-  }
-
-  // ----------------------------------------------------------------------------
   // Payload builder (UI -> API)
   // Core: only send fields that the API actually supports.
   // Images: send SMALL payload only (URLs / json arrays of URLs). No base64.
   // ----------------------------------------------------------------------------
   function buildPayloadForApi(carData) {
-    const keys = AdminState.apiKeys;
-    const casing = AdminState.casing;
-    const imagesStorage = AdminState.imagesStorage;
+function buildPayloadForApi(carData) {
+  const keys = AdminState.apiKeys;
+  const casing = AdminState.casing;
+  const imagesStorage = AdminState.imagesStorage;
 
-    const payload = {};
+  const payload = {};
 
-    function maybeSet(k, v) {
-      if (keys && !keys.has(k)) return;
-      payload[k] = v;
-    }
+  function maybeSet(k, v) {
+    if (keys && !keys.has(k)) return;
+    payload[k] = v;
+  }
 
-    const schemaUnknown = !keys;
+  const schemaUnknown = !keys;
 
-    function setCore(k, v) {
-      if (schemaUnknown) payload[k] = v;
-      else maybeSet(k, v);
-    }
+  function setCore(k, v) {
+    if (schemaUnknown) payload[k] = v;
+    else maybeSet(k, v);
+  }
 
-    const kExterior = casing === 'camel' ? 'exteriorColor' : 'exterior_color';
-    const kInterior = casing === 'camel' ? 'interiorColor' : 'interior_color';
-    const kFuel = casing === 'camel' ? 'fuelType' : 'fuel_type';
+  const kExterior = casing === 'camel' ? 'exteriorColor' : 'exterior_color';
+  const kInterior = casing === 'camel' ? 'interiorColor' : 'interior_color';
+  const kFuel = casing === 'camel' ? 'fuelType' : 'fuel_type';
 
-    setCore('year', Number(carData.year) || 0);
-    setCore('make', carData.make || '');
-    setCore('model', carData.model || '');
-    setCore('trim', carData.trim || '');
-    setCore('price', Number(carData.price) || 0);
-    setCore('mileage', Number(carData.mileage) || 0);
-    setCore('description', carData.description || '');
+  setCore('year', Number(carData.year) || 0);
+  setCore('make', carData.make || '');
+  setCore('model', carData.model || '');
+  setCore('trim', carData.trim || '');
+  setCore('price', Number(carData.price) || 0);
+  setCore('mileage', Number(carData.mileage) || 0);
+  setCore('description', carData.description || '');
 
-    if (schemaUnknown || (keys && keys.has(kExterior))) maybeSet(kExterior, carData.exteriorColor || '');
-    if (schemaUnknown || (keys && keys.has(kInterior))) maybeSet(kInterior, carData.interiorColor || '');
-    if (schemaUnknown || (keys && keys.has(kFuel))) maybeSet(kFuel, carData.fuelType || '');
+  if (schemaUnknown || (keys && keys.has(kExterior))) maybeSet(kExterior, carData.exteriorColor || '');
+  if (schemaUnknown || (keys && keys.has(kInterior))) maybeSet(kInterior, carData.interiorColor || '');
+  if (schemaUnknown || (keys && keys.has(kFuel))) maybeSet(kFuel, carData.fuelType || '');
 
-    if (schemaUnknown || (keys && keys.has('transmission'))) maybeSet('transmission', carData.transmission || '');
-    if (schemaUnknown || (keys && keys.has('engine'))) maybeSet('engine', carData.engine || '');
-    if (schemaUnknown || (keys && keys.has('drivetrain'))) maybeSet('drivetrain', carData.drivetrain || '');
+  if (schemaUnknown || (keys && keys.has('transmission'))) maybeSet('transmission', carData.transmission || '');
+  if (schemaUnknown || (keys && keys.has('engine'))) maybeSet('engine', carData.engine || '');
+  if (schemaUnknown || (keys && keys.has('drivetrain'))) maybeSet('drivetrain', carData.drivetrain || '');
 
+  // Only include images fields if admin intentionally changed images
+  if (AdminState.imagesTouched === true) {
     const imagesArr = Array.isArray(carData.images) ? carData.images.filter(Boolean) : [];
 
     if (imagesStorage === 'images_json') {
@@ -246,9 +87,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (schemaUnknown) payload.image_url = first;
       else maybeSet('image_url', first);
     }
-
-    return payload;
   }
+
+  return payload;
+}
 
   async function fetchCarsAndRender() {
     try {

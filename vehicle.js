@@ -602,7 +602,7 @@ const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765
     // Render specs
     renderSpecs(car);
 
-    // Set description
+    // Set description (safe, idempotent)
     const descriptionEl = document.getElementById('vehicle-description');
     if (descriptionEl) {
       // Generate a meaningful description if none provided or generic
@@ -610,8 +610,15 @@ const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765
       if (!descText || descText === 'Well-maintained vehicle ready for its next owner. Reach out for details.') {
         descText = generateAutoDescription(car);
       }
-      descriptionEl.innerHTML = `<p>${descText}</p>`;
+      descriptionEl.textContent = descText;
     }
+
+    // Healthcheck log (once per render)
+    console.log('[HEALTHCHECK][DETAIL RENDER]', {
+      id: car.id,
+      mainImage: car.mainImage,
+      thumbnails: (car.images && car.images.length) || 0
+    });
 
     // Render features - use provided features or generate from specs
     const featuresToRender = (car.features && car.features.length > 0) 
@@ -696,16 +703,19 @@ const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765
       thumbnailsContainer.appendChild(thumbnailDiv);
     });
 
-    // Add click event listener to thumbnails container (event delegation)
-    thumbnailsContainer.addEventListener('click', function(e) {
-      const thumbnail = e.target.closest('.vehicle-thumbnail img');
-      if (thumbnail) {
-        const mainImageEl = document.getElementById('vehicle-main-image');
-        if (mainImageEl) {
-          mainImageEl.src = thumbnail.dataset.fullUrl || thumbnail.src;
+    // Add click event listener to thumbnails container (event delegation), only once
+    if (!thumbnailsContainer.dataset.bound) {
+      thumbnailsContainer.addEventListener('click', function(e) {
+        const thumbnail = e.target.closest('.vehicle-thumbnail img');
+        if (thumbnail) {
+          const mainImageEl = document.getElementById('vehicle-main-image');
+          if (mainImageEl) {
+            mainImageEl.src = thumbnail.dataset.fullUrl || thumbnail.src;
+          }
         }
-      }
-    });
+      });
+      thumbnailsContainer.dataset.bound = 'true';
+    }
   }
 
   /**
