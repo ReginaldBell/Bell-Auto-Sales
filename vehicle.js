@@ -1,10 +1,17 @@
+
+const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765778518/icons8-image-not-available-96_vgxpyr.png';
+
+  function getImageUrl(value) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (value && typeof value === 'object') {
+      return value.url || value.secure_url || PLACEHOLDER_URL;
+    }
+    return PLACEHOLDER_URL;
+  }
 // vehicle.js - Dynamic vehicle detail page functionality
 
 (function() {
   'use strict';
-
-  // Shared placeholder image for vehicles with no images
-  const PLACEHOLDER_URL = 'https://res.cloudinary.com/dglr2nch4/image/upload/v1765778518/icons8-image-not-available-96_vgxpyr.png';
 
   // ==================== DATA MODEL ====================
   function loadCarsFromStorage() {
@@ -310,7 +317,7 @@
       console.warn('Failed to parse images_json:', err);
       images = [];
     }
-    const firstImage = images[0] || '';
+    const firstImage = images.length > 0 ? getImageUrl(images[0]) : '';
     
     return {
       id: v.id,
@@ -538,7 +545,7 @@
     // Set main image
     const mainImageEl = document.getElementById('vehicle-main-image');
     if (mainImageEl) {
-      const primary = car.images?.[0] || car.mainImage || PLACEHOLDER_URL;
+      const primary = car.images?.[0] || car.mainImage;
       // [HEALTHCHECK][DETAIL MAIN IMG] Log main image source
       console.log(`[HEALTHCHECK][DETAIL MAIN IMG] Vehicle ID=${car.id}:`, {
         'car.images': car.images,
@@ -546,9 +553,9 @@
         'car.mainImage': car.mainImage,
         'finalSrc': primary,
         'isPlaceholder': primary === PLACEHOLDER_URL,
-        'looksLikeCloudinary': primary?.includes('cloudinary')
+        'looksLikeCloudinary': typeof primary === 'string' && primary.includes('cloudinary')
       });
-      mainImageEl.src = primary;
+      mainImageEl.src = primary || PLACEHOLDER_URL;
       mainImageEl.alt = car.title || '';
       mainImageEl.onerror = function() {
         console.log('[HEALTHCHECK][DETAIL ONERROR] Main image failed to load:', this.src);
@@ -622,26 +629,30 @@
       'car.thumbnails': car.thumbnails,
       'computedSources': sources,
       'sourcesCount': sources.length,
-      'allLookLikeCloudinary': sources.every(s => s?.includes('cloudinary')),
-      'anyPlaceholder': sources.some(s => s?.includes('placeholder') || s?.includes('icons8-image'))
+      'allLookLikeCloudinary': sources.every(s => {
+        const u = getImageUrl(s);
+        return typeof u === 'string' && u.includes('cloudinary');
+      }),
+      'anyPlaceholder': sources.some(s => typeof getImageUrl(s) === 'string' && (getImageUrl(s).includes('placeholder') || getImageUrl(s).includes('icons8-image')))
     });
 
     // Create thumbnail elements
     sources.forEach((url, index) => {
+      const resolvedUrl = getImageUrl(url);
       // [HEALTHCHECK][DETAIL THUMB RENDER] Log each thumbnail src
       console.log(`[HEALTHCHECK][DETAIL THUMB RENDER] Thumbnail ${index}:`, {
         url: url,
-        finalSrc: url || PLACEHOLDER_URL,
-        isPlaceholder: !url || url === PLACEHOLDER_URL
+        finalSrc: resolvedUrl,
+        isPlaceholder: !resolvedUrl || resolvedUrl === PLACEHOLDER_URL
       });
 
       const thumbnailDiv = document.createElement('div');
       thumbnailDiv.className = 'vehicle-thumbnail';
 
       const img = document.createElement('img');
-      img.src = url || PLACEHOLDER_URL;
+        img.src = resolvedUrl;
       img.alt = `${car.title} thumbnail ${index + 1}`;
-      img.dataset.fullUrl = url || PLACEHOLDER_URL;
+      img.dataset.fullUrl = resolvedUrl;
       img.onerror = function() {
         console.log('[HEALTHCHECK][DETAIL THUMB ONERROR] Thumbnail failed to load:', this.src);
         this.onerror = null;
