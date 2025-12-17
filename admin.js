@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     imagesStorage: 'images',    // 'images' | 'images_json' | 'image_url' | 'none'
     casing: 'snake',            // 'snake' | 'camel' | 'unknown'
     imagesTouched: false        // Track if images were intentionally changed
+    , vehiclesFetchSeq: 0      // Sequence number for fetchCarsAndRender race protection
   };
 
   // ----------------------------------------------------------------------------
@@ -166,20 +167,37 @@ async function requestJson(url, options = {}) {
   }
 
   async function fetchCarsAndRender() {
+    AdminState.vehiclesFetchSeq = (AdminState.vehiclesFetchSeq || 0) + 1;
+    const seq = AdminState.vehiclesFetchSeq;
     try {
       const list = await requestJson(API.list(), { method: 'GET' });
-
-      if (Array.isArray(list) && list.length > 0) {
-        detectApiSchemaFromRow(list[0]);
+      // Only update if this is the latest fetch
+      if (seq === AdminState.vehiclesFetchSeq) {
+        if (Array.isArray(list) && list.length > 0) {
+          detectApiSchemaFromRow(list[0]);
+        }
+        AdminState.cars = Array.isArray(list) ? list.map(normalizeCarFromApi) : [];
+        renderAdminInventory();
       }
-
-      AdminState.cars = Array.isArray(list) ? list.map(normalizeCarFromApi) : [];
-      renderAdminInventory();
     } catch (err) {
+      // Only handle error if this is the latest fetch
+      if (seq !== AdminState.vehiclesFetchSeq) return;
+      let status = null;
+      if (err && typeof err.message === 'string') {
+        const match = err.message.match(/^HTTP (\d{3})/);
+        if (match) status = parseInt(match[1], 10);
+      }
+      if (status === 401) {
+        AdminState.isLoggedIn = false;
+        showLoginScreen();
+        alert('Session expired or not authenticated. Please log in again.');
+      } else if (status === 403) {
+        alert('Access forbidden or CSRF error. Please refresh and try again.');
+      } else {
+        alert('Could not load inventory from the server. Check your connection or try again later.');
+      }
+      // Do NOT clear AdminState.cars or the DOM on GET failure
       console.error('Failed to load vehicles from API:', err);
-      AdminState.cars = [];
-      renderAdminInventory();
-      alert('Could not load inventory from the server. Check that server.js is running on port 8080.');
     }
   }
 
