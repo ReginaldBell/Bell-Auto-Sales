@@ -1,6 +1,41 @@
+# Future Improvements
+
+- Enhanced multi-user admin roles
+- Automated database migration scripts
+- Real-time inventory updates
+- Advanced analytics and reporting
+## Production Notes
+
+- **Hosting**: For production, deploy on a host that supports persistent storage or connect to an external database. Map the `backups/` directory and database file to persistent volumes.
+- **Persistence**: Set the `DATA_DIR` environment variable to control where the database and uploads are stored. Ensure this path is on a persistent disk.
+- **Scaling**: The application is designed to scale from a single-node demo to production by swapping SQLite for a managed database and using Cloudinary for image assets. Review security and backup strategies before going live.
+## Known Limitations (Free Tier)
+
+- **Ephemeral Filesystem**: On free-tier cloud hosts (e.g., Render, Vercel, Heroku), the local SQLite database and uploads directory are not persistent. Data will be lost on redeploy or instance restart unless persistent storage is configured.
+- **Scaling**: The default SQLite setup is suitable for single-instance deployments. For multi-instance or high-availability production, migrate to a managed database and persistent storage for uploads/backups.
+## Deployment & Persistence
+
+- **SQLite Database**: The application uses SQLite for data persistence by default. The database file location is configurable via the `DATA_DIR` environment variable for production deployments.
+- **Persistence Depends on Hosting**: On free-tier cloud platforms, the filesystem may be ephemeral—data and uploads may be lost on redeploy or restart. For production, use persistent disks or migrate to an external database (PostgreSQL/MySQL) as described below.
+- **Uploads & Backups**: Vehicle images are stored in Cloudinary, ensuring persistence across deployments. Local database backups are stored in the `backups/` directory, which should be mapped to persistent storage in production.
+## Security
+
+- **Session-based Authentication**: Admin routes are protected by session-based authentication.
+- **CSRF Protection**: All write routes are protected against cross-site request forgery.
+- **Rate Limiting**: API endpoints are rate-limited to mitigate abuse.
+- **Secure Cookies**: Session cookies are set with secure, HTTP-only, and SameSite attributes.
+- **Security Headers**: The app uses Helmet to set HTTP security headers, including a strict Content Security Policy (CSP).
+- **Audit Logging**: Non-sensitive admin actions are logged for traceability.
 # Bell Auto Sales
 
+
 Vehicle inventory management system with Node.js, Express, and SQLite.
+
+## Features
+
+- **Robust Admin UI**: The admin dashboard is hardened to prevent destructive state clears on transient failures (e.g., network errors, authentication expiration). Race protection ensures that only the latest inventory fetches update the UI, preventing stale data from overwriting valid state.
+- **Cloudinary Integration**: Vehicle images are uploaded and delivered via Cloudinary. Image persistence is independent of application instance restarts, ensuring reliable asset delivery.
+- **Audit Logging**: Non-sensitive audit logs are maintained for key admin actions.
 
 ## Quick Start
 
