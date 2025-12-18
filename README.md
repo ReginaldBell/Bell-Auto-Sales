@@ -49,29 +49,32 @@ Clean, semantic HTML/CSS/JavaScript
 
 
 📸 Screenshots
-Homepage - Vehicle Inventory
+
+🔍 Visual Walkthrough: Homepage → Inventory → Vehicle → Contact → Admin
+
+Homepage – Hero & Call to Action
 Show Image
-Clean card-based layout showcasing available vehicles with key details at a glance. Features include availability badges, pricing, mileage, and quick view options.
+Clean, modern landing page with strong call-to-action and brand-focused messaging.
+
+Inventory Grid
+Show Image
+Card-based inventory layout displaying pricing, mileage, availability, and preview images.
 
 Vehicle Detail Page
 Show Image
-Comprehensive vehicle information with image gallery, detailed specifications, and integrated contact options. Customers can view all photos and get complete vehicle history.
-
-Admin Panel
-Show Image
-Note: Screenshot shows the vehicle management interface for demonstration purposes. In production, this area is password-protected.
-Intuitive admin interface for managing inventory. Features include:
-
-Multi-field vehicle entry form
-Image upload with multiple file support
-Dropdown menus for standardized data (fuel type, transmission, drivetrain)
-Rich text description editor
-Status management
-
+Full vehicle detail view with multi-image gallery, specifications, and inquiry access.
 
 Contact Form
 Show Image
-User-friendly contact system with vehicle selection dropdown, ensuring inquiries are directed to specific inventory items.
+Vehicle-aware contact form allowing customers to inquire about specific listings.
+
+Footer Contact CTA
+Show Image
+Secondary conversion path via footer call-to-action for Facebook or direct contact.
+
+Admin Panel – Add Vehicle
+Show Image
+Secure admin interface for adding vehicles with full metadata and multi-image upload support.
 
 🛠️ Tech Stack
 Backend:
