@@ -18,7 +18,7 @@
   <link rel="canonical" href="https://example.com/" />
 
   <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" type="image/png" href="unnamed.png">
+  <link rel="icon" type="image/png" href="src/public/images/bs-logo.png">
 
   <!-- LocalBusiness JSON-LD Schema -->
   <script type="application/ld+json">
@@ -28,8 +28,8 @@
     "name": "B & S Auto Sales",
     "description": "Quality used cars, trucks, and SUVs at fair prices in East Texas.",
     "url": "https://example.com",
-    "logo": "https://example.com/unnamed.png",
-    "image": "https://example.com/unnamed.png",
+    "logo": "screenshots/logo-bs-auto-sales.png",
+    "image": "screenshots/logo-bs-auto-sales.png",
     "telephone": "+1-214-451-8037",
     "email": "bellandsonauto@gmail.com",
     "address": {
@@ -74,7 +74,7 @@
   <header class="header">
     <div class="container header-content">
       <a href="#home" class="logo">
-        <img src="unnamed.png" alt="B &amp; S Auto Sales logo" class="logo-image" />
+        <img src="src/public/images/bs-logo.png" alt="B &amp; S Auto Sales logo" class="logo-image" />
         <div class="logo-text">
           <span class="logo-main">B &amp; S</span>
           <span class="logo-sub">Auto Sales</span>
@@ -404,6 +404,27 @@
 
     <div class="footer-bottom">
       <p>© 2025 B &amp; S Auto Sales. All rights reserved.</p>
+      <!-- DEV-ONLY: Served From Indicator -->
+      <script>
+      (function() {
+        var isDev = (
+          window.location.hostname === "127.0.0.1" ||
+          window.location.hostname === "localhost" ||
+          window.location.protocol === "file:"
+        );
+        if (isDev) {
+          var el = document.createElement("div");
+          el.textContent = "Served from: " + window.location.href;
+          el.style.fontSize = "11px";
+          el.style.color = "#888";
+          el.style.marginTop = "8px";
+          el.style.textAlign = "right";
+          el.style.opacity = "0.7";
+          el.style.fontFamily = "monospace";
+          document.querySelector(".footer").appendChild(el);
+        }
+      })();
+      </script>
     </div>
   </footer>
 
