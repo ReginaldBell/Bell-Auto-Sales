@@ -37,44 +37,152 @@ Vehicle inventory management system with Node.js, Express, and SQLite.
 - **Cloudinary Integration**: Vehicle images are uploaded and delivered via Cloudinary. Image persistence is independent of application instance restarts, ensuring reliable asset delivery.
 - **Audit Logging**: Non-sensitive audit logs are maintained for key admin actions.
 
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Start the server (production)
-npm start
-
-# Start with auto-reload (development)
-npm run dev
-```
-
-Server runs at: **http://localhost:8080**
-
-## NPM Scripts
-
-| Script | Command | Description |
-|--------|---------|-------------|
-| `start` | `npm start` | Production server |
-| `dev` | `npm run dev` | Development with nodemon auto-reload |
-| `backup:db` | `npm run backup:db` | Backup database to `backups/` folder |
-| `restore:db` | `npm run restore:db` | Restore database from backup (interactive) |
-
 ## Project Structure
 
 ```
 bell-auto-sales/
-├── server.js          # Express API server
-├── cars.db            # SQLite database (auto-created)
-├── uploads/           # Vehicle images
-├── backups/           # Database backups (gitignored)
-├── scripts/           # Helper scripts
-│   ├── backup-db.js
-│   └── restore-db.js
-├── index.html         # Public inventory page
-├── admin.html         # Admin dashboard
-└── vehicle.html       # Single vehicle details
+│
+├─ src/
+│   ├─ server.js                    # App entry point
+│   ├─ config/
+│   │   ├─ env.js                   # Environment configuration
+│   │   ├─ database.js              # Database initialization
+│   │   └─ constants.js             # App-wide constants
+│   │
+│   ├─ api/                         # API layer
+│   │   ├─ routes/
+│   │   │   ├─ vehicles.js
+│   │   │   ├─ admin.js
+│   │   │   ├─ auth.js
+│   │   │   └─ index.js             # Route aggregator
+│   │   │
+│   │   ├─ controllers/             # Business logic
+│   │   │   ├─ vehicleController.js
+│   │   │   ├─ adminController.js
+│   │   │   └─ authController.js
+│   │   │
+│   │   ├─ middleware/
+│   │   │   ├─ auth.js
+│   │   │   ├─ errorHandler.js
+│   │   │   ├─ validation.js
+│   │   │   └─ cors.js
+│   │   │
+│   │   ├─ validators/              # Input validation schemas
+│   │   │   ├─ vehicleValidator.js
+│   │   │   └─ adminValidator.js
+│   │   │
+│   │   └─ services/                # Data & external services
+│   │       ├─ vehicleService.js
+│   │       ├─ fileService.js
+│   │       └─ emailService.js
+│   │
+│   ├─ db/
+│   │   ├─ migrations/              # Schema migrations
+│   │   │   ├─ 001_init.sql
+│   │   │   └─ 002_add_fields.sql
+│   │   ├─ seeds/                   # Test data
+│   │   │   └─ seed.js
+│   │   ├─ models/                  # Data models
+│   │   │   ├─ Vehicle.js
+│   │   │   └─ Session.js
+│   │   └─ index.js                 # DB connection
+│   │
+│   └─ utils/
+│       ├─ logger.js
+│       ├─ helpers.js
+│       └─ encryption.js
+│
+├─ public/
+│   ├─ index.html                   # Homepage
+│   ├─ about.html
+│   ├─ vehicle.html
+│   ├─ admin.html
+│   ├─ privacy.html
+│   ├─ 404.html
+│   │
+│   ├─ css/
+│   │   ├─ main.css                 # Global styles
+│   │   ├─ vehicle.css
+│   │   ├─ admin.css
+│   │   └─ responsive.css           # Media queries
+│   │
+│   ├─ js/
+│   │   ├─ app.js                   # App initialization
+│   │   ├─ api-client.js            # API utilities
+│   │   ├─ pages/
+│   │   │   ├─ vehiclePage.js
+│   │   │   └─ adminPage.js
+│   │   ├─ components/
+│   │   │   ├─ carousel.js
+│   │   │   ├─ modal.js
+│   │   │   └─ filters.js
+│   │   └─ utils/
+│   │       ├─ dom.js
+│   │       └─ validation.js
+│   │
+│   └─ assets/
+│       ├─ images/
+│       │   ├─ brand/
+│       │   │   ├─ bell-logo.png
+│       │   │   ├─ favicon.png
+│       │   │   └─ logo-dark.png
+│       │   ├─ vehicles/
+│       │   │   ├─ thumbnails/
+│       │   │   └─ full-res/
+│       │   ├─ ui/
+│       │   │   ├─ icons/           # SVG icons
+│       │   │   └─ backgrounds/
+│       │   └─ screenshots/
+│       ├─ fonts/
+│       └─ icons/
+│
+├─ uploads/
+│   ├─ vehicles/
+│   │   ├─ temp/                    # Temporary uploads
+│   │   └─ archive/                 # Old images
+│   └─ backups/                     # Database backups
+│
+├─ tests/
+│   ├─ unit/
+│   │   ├─ controllers.test.js
+│   │   ├─ services.test.js
+│   │   └─ models.test.js
+│   ├─ integration/
+│   │   ├─ api.test.js
+│   │   └─ database.test.js
+│   ├─ e2e/
+│   │   └─ workflows.test.js
+│   └─ fixtures/                    # Mock data
+│
+├─ scripts/
+│   ├─ db/
+│   │   ├─ backup.js
+│   │   ├─ restore.js
+│   │   └─ reset.js
+│   ├─ migrations/
+│   │   └─ run-migrations.js
+│   └─ admin/
+│       └─ create-admin-user.js
+│
+├─ docs/
+│   ├─ API.md                       # API documentation
+│   ├─ DATABASE.md                  # Schema docs
+│   ├─ SETUP.md                     # Setup instructions
+│   ├─ ARCHITECTURE.md              # Architecture overview
+│   └─ DEPLOYMENT.md
+│
+├─ .github/
+│   └─ workflows/                   # CI/CD pipelines
+│       ├─ test.yml
+│       └─ deploy.yml
+│
+├─ .env.example
+├─ .env
+├─ .gitignore
+├─ .eslintrc.json
+├─ package.json
+├─ package-lock.json
+└─ README.md
 ```
 
 ---
