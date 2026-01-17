@@ -1,5 +1,12 @@
   function getImageUrl(val) {
-    if (typeof val === 'string' && val.trim()) return val.trim();
+    if (typeof val === 'string' && val.trim()) {
+      const s = val.trim();
+      // If it looks like a filename (no slash, no http), prepend /uploads/
+      if (!/^https?:\/\//.test(s) && !s.startsWith('/') && !s.includes('cloudinary.com')) {
+        return `/uploads/${s}`;
+      }
+      return s;
+    }
     if (val && typeof val === 'object') return val.url || val.secure_url || '';
     return '';
   }

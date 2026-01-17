@@ -281,7 +281,18 @@ const mutationLimiter = rateLimit({
   }
 });
 
-// Apply general limiter to all API routes
+
+
+// ...existing code...
+
+/* ======================
+   API Routes
+====================== */
+
+
+/* ======================
+   Apply general limiter to all API routes
+====================== */
 app.use("/api", apiLimiter);
 
 // Strict rate limiter for login attempts (brute force protection)
@@ -299,6 +310,8 @@ const loginLimiter = rateLimit({
   }
 });
 
+
+
 // Rate limiter for contact form (spam protection)
 const contactLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
@@ -312,136 +325,7 @@ const contactLimiter = rateLimit({
   }
 });
 
-// Origin/Referer allowlist for contact form (anti-CSRF for public endpoints)
-function getContactAllowedOrigins() {
-  const origins = new Set();
-  // Always allow localhost in dev
-  if (!isProduction) {
-    origins.add("http://localhost:8080");
-    origins.add("http://127.0.0.1:8080");
-    origins.add(`http://localhost:${PORT}`);
-    origins.add(`http://127.0.0.1:${PORT}`);
-  }
-  // Add from env: CONTACT_ALLOWED_ORIGINS=https://example.com,https://www.example.com
-  const envOrigins = process.env.CONTACT_ALLOWED_ORIGINS || process.env.CORS_ORIGIN;
-  if (envOrigins) {
-    envOrigins.split(",").map(o => o.trim()).filter(Boolean).forEach(o => origins.add(o));
-  }
-  return origins;
-}
-
-function contactOriginCheck(req, res, next) {
-  const origin = req.get("Origin");
-  const referer = req.get("Referer");
-  const checkValue = origin || (referer ? new URL(referer).origin : null);
-  
-  if (!checkValue) {
-    // No Origin/Referer - allow but log (some legitimate clients don't send these)
-    auditLog("CONTACT_NO_ORIGIN", { ip: req.ip, userAgent: req.get("User-Agent") });
-    return next();
-  }
-  
-  const allowed = getContactAllowedOrigins();
-  if (allowed.size === 0 || allowed.has(checkValue)) {
-    return next();
-  }
-  
-  auditLog("CONTACT_ORIGIN_BLOCKED", { ip: req.ip, origin: checkValue });
-  return res.status(403).json({ error: "Request origin not allowed" });
-}
-
 /* ======================
-   Authentication Middleware
-====================== */
-function requireAuth(req, res, next) {
-  if (req.session && req.session.isAdmin) {
-    return next();
-  }
-  auditLog("AUTH_REQUIRED", { ip: req.ip, path: req.path, method: req.method });
-  return res.status(401).json({ error: "Authentication required" });
-}
-
-/* ======================
-   Body Parser with Limits
-====================== */
-app.use(cookieParser()); // Required for csrf-csrf
-app.use(express.json({ limit: "1mb" })); // Reasonable JSON limit
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-
-/* ======================
-   Static Files
-====================== */
-app.use(express.static(__dirname));
-app.use("/uploads", express.static(uploadsDir));
-
-/* ======================
-   Database Setup
-====================== */
-const dbPath = path.join(DATA_DIR, "cars.db");
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error("Failed to connect to SQLite:", err);
-  } else {
-    console.log("Connected to SQLite database at", dbPath);
-  }
-});
-
-db.serialize(() => {
-  // Create vehicles table with status column
-  db.run(`
-    CREATE TABLE IF NOT EXISTS vehicles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      year INTEGER,
-      make TEXT,
-      model TEXT,
-      trim TEXT,
-      price INTEGER,
-      mileage INTEGER,
-      exterior_color TEXT,
-      interior_color TEXT,
-      fuel_type TEXT,
-      transmission TEXT,
-      engine TEXT,
-      drivetrain TEXT,
-      description TEXT,
-      images_json TEXT,
-      status TEXT NOT NULL DEFAULT 'available',
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Migration: Add status column if missing (for existing databases)
-  db.run(`
-    ALTER TABLE vehicles ADD COLUMN status TEXT NOT NULL DEFAULT 'available'
-  `, (err) => {
-    // Ignore error if column already exists
-    if (err && !err.message.includes('duplicate column')) {
-      console.error('Migration error:', err.message);
-    } else if (!err) {
-      console.log('Migration: Added status column to vehicles table');
-    }
-  });
-
-  // Create leads table for contact form submissions
-  db.run(`
-    CREATE TABLE IF NOT EXISTS leads (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      message TEXT NOT NULL,
-      vehicle_id INTEGER,
-      vehicle_title TEXT,
-      ip_address TEXT,
-      user_agent TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-});
-
-/* ======================
-   API Routes
-====================== */
 
 /* ======================
    Admin Authentication Routes
@@ -537,6 +421,142 @@ app.post("/api/admin/logout", (req, res) => {
     res.json({ success: true });
   });
 });
+
+// Origin/Referer allowlist for contact form (anti-CSRF for public endpoints)
+function getContactAllowedOrigins() {
+  const origins = new Set();
+  // Always allow localhost in dev
+  if (!isProduction) {
+    origins.add("http://localhost:8080");
+    origins.add("http://127.0.0.1:8080");
+    origins.add(`http://localhost:${PORT}`);
+    origins.add(`http://127.0.0.1:${PORT}`);
+  }
+  // Add from env: CONTACT_ALLOWED_ORIGINS=https://example.com,https://www.example.com
+  const envOrigins = process.env.CONTACT_ALLOWED_ORIGINS || process.env.CORS_ORIGIN;
+  if (envOrigins) {
+    envOrigins.split(",").map(o => o.trim()).filter(Boolean).forEach(o => origins.add(o));
+  }
+  return origins;
+}
+
+function contactOriginCheck(req, res, next) {
+  const origin = req.get("Origin");
+  const referer = req.get("Referer");
+  const checkValue = origin || (referer ? new URL(referer).origin : null);
+  
+  if (!checkValue) {
+    // No Origin/Referer - allow but log (some legitimate clients don't send these)
+    auditLog("CONTACT_NO_ORIGIN", { ip: req.ip, userAgent: req.get("User-Agent") });
+    return next();
+  }
+  
+  const allowed = getContactAllowedOrigins();
+  if (allowed.size === 0 || allowed.has(checkValue)) {
+    return next();
+  }
+  
+  auditLog("CONTACT_ORIGIN_BLOCKED", { ip: req.ip, origin: checkValue });
+  return res.status(403).json({ error: "Request origin not allowed" });
+}
+
+/* ======================
+   Authentication Middleware
+====================== */
+function requireAuth(req, res, next) {
+  if (req.session && req.session.isAdmin) {
+    return next();
+  }
+  auditLog("AUTH_REQUIRED", { ip: req.ip, path: req.path, method: req.method });
+  return res.status(401).json({ error: "Authentication required" });
+}
+
+/* ======================
+   Body Parser with Limits
+====================== */
+app.use(cookieParser()); // Required for csrf-csrf
+app.use(express.json({ limit: "1mb" })); // Reasonable JSON limit
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+/* ======================
+   Static Files
+====================== */
+app.use(express.static(__dirname));
+app.use("/uploads", express.static(uploadsDir));
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+/* ======================
+   Database Setup
+====================== */
+const dbPath = path.join(DATA_DIR, "cars.db");
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error("Failed to connect to SQLite:", err);
+  } else {
+    console.log("Connected to SQLite database at", dbPath);
+  }
+});
+
+db.serialize(() => {
+  // Create vehicles table with status column
+  db.run(`
+    CREATE TABLE IF NOT EXISTS vehicles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year INTEGER,
+      make TEXT,
+      model TEXT,
+      trim TEXT,
+      price INTEGER,
+      mileage INTEGER,
+      exterior_color TEXT,
+      interior_color TEXT,
+      fuel_type TEXT,
+      transmission TEXT,
+      engine TEXT,
+      drivetrain TEXT,
+      description TEXT,
+      images_json TEXT,
+      status TEXT NOT NULL DEFAULT 'available',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Migration: Add status column if missing (for existing databases)
+  db.run(`
+    ALTER TABLE vehicles ADD COLUMN status TEXT NOT NULL DEFAULT 'available'
+  `, (err) => {
+    // Ignore error if column already exists
+    if (err && !err.message.includes('duplicate column')) {
+      console.error('Migration error:', err.message);
+    } else if (!err) {
+      console.log('Migration: Added status column to vehicles table');
+    }
+  });
+
+  // Create leads table for contact form submissions
+  db.run(`
+    CREATE TABLE IF NOT EXISTS leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      message TEXT NOT NULL,
+      vehicle_id INTEGER,
+      vehicle_title TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+});
+
+/* ======================
+   API Routes
+====================== */
+
 
 /* ======================
    Zod Validation Schema
