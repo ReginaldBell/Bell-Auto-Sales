@@ -192,6 +192,14 @@ app.options(/.*/, cors(corsOptions));
 app.use(cors(corsOptions));
 
 /* ======================
+   Body Parser with Limits
+   CRITICAL: Must be BEFORE all route definitions to parse request bodies
+====================== */
+app.use(cookieParser()); // Required for csrf-csrf
+app.use(express.json({ limit: "1mb" })); // Reasonable JSON limit
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+/* ======================
    Session Configuration
 ====================== */
 const sessionStore = new SQLiteStore({
@@ -470,13 +478,6 @@ function requireAuth(req, res, next) {
   auditLog("AUTH_REQUIRED", { ip: req.ip, path: req.path, method: req.method });
   return res.status(401).json({ error: "Authentication required" });
 }
-
-/* ======================
-   Body Parser with Limits
-====================== */
-app.use(cookieParser()); // Required for csrf-csrf
-app.use(express.json({ limit: "1mb" })); // Reasonable JSON limit
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 /* ======================
    Static Files
