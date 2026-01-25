@@ -98,10 +98,6 @@ if (process.env.SENDGRID_API_KEY) {
 /* ======================
    Uploads Directory
 ====================== */
-const uploadsDir = path.join(DATA_DIR, "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
 
 /* ======================
    Multer Configuration (Memory Storage for Cloudinary)
@@ -483,7 +479,6 @@ function requireAuth(req, res, next) {
    Static Files
 ====================== */
 app.use(express.static(__dirname));
-app.use("/uploads", express.static(uploadsDir));
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
