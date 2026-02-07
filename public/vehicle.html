@@ -1,1 +1,570 @@
-<!-- Vehicle page -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="View vehicle details and specifications at B &amp; S Auto Sales. Quality used cars serving East Texas, including Mineola and surrounding communities.">
+  <title>Vehicle Details | B &amp; S Auto Sales - East Texas</title>
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://example.com/vehicle.html">
+  <meta property="og:title" content="Vehicle Details | B &amp; S Auto Sales">
+  <meta property="og:description" content="View vehicle details at B &amp; S Auto Sales. Quality used cars, trucks, and SUVs in East Texas.">
+  <meta property="og:image" content="assets/images/brand/bs-logo.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" type="image/png" href="assets/images/brand/bs-logo.png">
+  <style>
+    /* Vehicle Detail Page Specific Styles */
+    .breadcrumb {
+      padding: var(--spacing-md) 0;
+      background-color: var(--color-bg-secondary);
+    }
+
+    .breadcrumb-link {
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      font-size: var(--font-size-sm);
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      transition: color 0.2s ease;
+    }
+
+    .breadcrumb-link:hover {
+      color: var(--color-primary-red);
+    }
+
+    .vehicle-detail-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--spacing-xl);
+      margin-bottom: var(--spacing-2xl);
+    }
+
+    .vehicle-gallery {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+
+    .vehicle-main-image-wrapper {
+      width: 100%;
+      aspect-ratio: 16/10;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background-color: var(--color-border);
+    }
+
+    .vehicle-main-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .vehicle-thumbnails {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--spacing-sm);
+    }
+
+    .vehicle-thumbnail {
+      aspect-ratio: 1;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.2s ease;
+    }
+
+    .vehicle-thumbnail:hover {
+      border-color: var(--color-primary-red);
+    }
+
+    .vehicle-thumbnail img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .vehicle-info-header {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .vehicle-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--spacing-md);
+    }
+
+    .vehicle-title {
+      font-size: var(--font-size-3xl);
+      font-weight: 700;
+      color: var(--color-accent-black);
+      line-height: 1.2;
+    }
+
+    .vehicle-status {
+      display: inline-block;
+      padding: var(--spacing-xs) var(--spacing-md);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      background-color: #dcfce7;
+      color: #166534;
+    }
+
+    .vehicle-status.sold {
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+
+    .vehicle-status.pending {
+      background-color: rgba(251, 191, 36, 0.95);
+      color: #1f2937;
+    }
+
+    .vehicle-price {
+      font-size: var(--font-size-4xl);
+      font-weight: 700;
+      color: var(--color-primary-red);
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .vehicle-subtitle {
+      font-size: var(--font-size-base);
+      color: var(--color-text-secondary);
+      line-height: 1.6;
+    }
+
+    .vehicle-specs {
+      background-color: var(--color-bg-secondary);
+      padding: var(--spacing-lg);
+      border-radius: var(--radius-lg);
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .vehicle-specs-title {
+      font-size: var(--font-size-xl);
+      font-weight: 700;
+      color: var(--color-accent-black);
+      margin-bottom: var(--spacing-md);
+    }
+
+    .specs-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--spacing-md);
+    }
+
+    .spec-item {
+      display: flex;
+      justify-content: space-between;
+      padding-bottom: var(--spacing-sm);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .spec-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .spec-label {
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .spec-value {
+      color: var(--color-text-secondary);
+    }
+
+    .vehicle-section {
+      background-color: var(--color-bg);
+      padding: var(--spacing-2xl) 0;
+    }
+
+    .vehicle-section-title {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--color-accent-black);
+      margin-bottom: var(--spacing-md);
+    }
+
+    .vehicle-description {
+      font-size: var(--font-size-base);
+      line-height: 1.8;
+      color: var(--color-text);
+      margin-bottom: var(--spacing-xl);
+    }
+
+    .vehicle-features {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--spacing-sm);
+    }
+
+    .vehicle-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--spacing-sm);
+      font-size: var(--font-size-base);
+      color: var(--color-text);
+    }
+
+    .vehicle-features li:before {
+      content: "✓";
+      color: var(--color-primary-red);
+      font-weight: 700;
+      font-size: var(--font-size-lg);
+    }
+
+    .vehicle-cta-section {
+      background: linear-gradient(135deg, var(--color-accent-black) 0%, #374151 100%);
+      padding: var(--spacing-2xl) 0;
+    }
+
+    .vehicle-cta-box {
+      background-color: var(--color-bg);
+      border-radius: var(--radius-xl);
+      padding: var(--spacing-xl);
+      text-align: center;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .vehicle-cta-title {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--color-accent-black);
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .vehicle-cta-text {
+      font-size: var(--font-size-base);
+      color: var(--color-text-secondary);
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .vehicle-cta-button {
+      width: auto;
+      min-width: 280px;
+      min-height: 48px;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .vehicle-contact-info {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      margin-top: var(--spacing-lg);
+      padding-top: var(--spacing-lg);
+      border-top: 1px solid var(--color-border);
+    }
+
+    .vehicle-contact-info span {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .vehicle-contact-info a {
+      color: var(--color-primary-red);
+      text-decoration: none;
+      padding: 0.25rem 0;
+    }
+
+    .vehicle-contact-info a:hover {
+      text-decoration: underline;
+    }
+
+    /* Mobile-first: Small screens */
+    @media (max-width: 480px) {
+      .vehicle-title {
+        font-size: var(--font-size-xl);
+      }
+      
+      .vehicle-price {
+        font-size: var(--font-size-2xl);
+      }
+      
+      .vehicle-specs {
+        padding: var(--spacing-md);
+      }
+      
+      .vehicle-cta-box {
+        padding: var(--spacing-md);
+      }
+      
+      .vehicle-cta-title {
+        font-size: var(--font-size-xl);
+      }
+      
+      .vehicle-cta-button {
+        width: 100%;
+        min-width: unset;
+      }
+      
+      .vehicle-thumbnails {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+      }
+      
+      .breadcrumb-link {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+      }
+    }
+
+    @media (min-width: 640px) {
+      .specs-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .vehicle-features {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (min-width: 768px) {
+      .vehicle-title {
+        font-size: var(--font-size-4xl);
+      }
+
+      .vehicle-contact-info {
+        flex-direction: row;
+        justify-content: center;
+        gap: var(--spacing-xl);
+      }
+    }
+
+    @media (min-width: 1024px) {
+      .vehicle-detail-layout {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .vehicle-title-row {
+        flex-direction: row;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header" id="header">
+    <div class="container">
+      <div class="header-content">
+        <a href="index.html" class="logo">
+          <span class="logo-accent">B &amp; S</span> Auto Sales
+        </a>
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu">
+          ☰
+        </button>
+        <nav class="nav" id="main-nav">
+          <ul class="nav-list">
+            <li><a href="index.html#home" class="nav-link">Home</a></li>
+            <li><a href="index.html#inventory" class="nav-link">Inventory</a></li>
+            <li><a href="index.html#contact" class="nav-link">Contact</a></li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <div class="container">
+      <a href="index.html#inventory" class="breadcrumb-link">
+        ← Back to All Vehicles
+      </a>
+    </div>
+  </div>
+
+  <!-- Vehicle Detail Main Section -->
+  <section class="section">
+    <div class="container">
+      <div class="vehicle-detail-layout">
+        <!-- Left Column: Gallery -->
+        <div class="vehicle-gallery">
+          <!-- Vehicle navigation arrows (UI-only, no data logic) -->
+          <div class="nav-arrows">
+            <button
+              class="nav-arrow"
+              id="prev-vehicle"
+              aria-label="Previous vehicle"
+              type="button"
+            >‹</button>
+
+            <button
+              class="nav-arrow"
+              id="next-vehicle"
+              aria-label="Next vehicle"
+              type="button"
+            >›</button>
+          </div>
+          <div class="vehicle-main-image-wrapper">
+            <img 
+              id="vehicle-main-image" 
+              src="https://res.cloudinary.com/dglr2nch4/image/upload/v1765778518/icons8-image-not-available-96_vgxpyr.png" 
+              alt="Vehicle Main Image" 
+              class="vehicle-main-image"
+            >
+          </div>
+          <div id="vehicle-thumbnails" class="vehicle-thumbnails">
+            <!-- Thumbnails will be rendered by vehicle.js -->
+          </div>
+        </div>
+
+        <!-- Right Column: Vehicle Info -->
+        <div class="vehicle-info">
+          <div class="vehicle-info-header">
+            <div class="vehicle-title-row">
+              <h1 id="vehicle-title" class="vehicle-title">2020 Honda Accord EX</h1>
+              <span id="vehicle-status" class="vehicle-status">Available</span>
+            </div>
+            <p id="vehicle-price" class="vehicle-price">$22,995</p>
+            <p id="vehicle-subtitle" class="vehicle-subtitle">Reliable sedan with low mileage and modern features. Perfect for daily commuting and family trips.</p>
+          </div>
+
+          <!-- Key Specs -->
+          <div class="vehicle-specs">
+            <h2 class="vehicle-specs-title">At a Glance</h2>
+            <div id="vehicle-specs" class="specs-grid">
+              <div class="spec-item">
+                <span class="spec-label">Year</span>
+                <span class="spec-value">2020</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Mileage</span>
+                <span class="spec-value">45,000 miles</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Transmission</span>
+                <span class="spec-value">Automatic</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Engine</span>
+                <span class="spec-value">1.5L Turbocharged I4</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Drivetrain</span>
+                <span class="spec-value">Front-Wheel Drive</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Fuel Type</span>
+                <span class="spec-value">Gasoline</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Exterior Color</span>
+                <span class="spec-value">Modern Steel Metallic</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Interior Color</span>
+                <span class="spec-value">Grey</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Stock #</span>
+                <span class="spec-value">BA2020HA001</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Vehicle Overview & Features -->
+  <section class="vehicle-section">
+    <div class="container">
+      <h2 class="vehicle-section-title">About This Vehicle</h2>
+      <div id="vehicle-description" class="vehicle-description">
+        <p>This 2020 Honda Accord EX is an exceptional value offering reliability, comfort, and modern technology. With only 45,000 miles on the odometer, this sedan has been meticulously maintained and is ready for its next owner. The Accord is known for its excellent fuel economy, spacious interior, and smooth ride quality, making it perfect for both city commuting and highway cruising.</p>
+        <p>The EX trim comes well-equipped with premium features including a touchscreen infotainment system with Apple CarPlay and Android Auto, power moonroof, dual-zone automatic climate control, and Honda Sensing safety suite. The turbocharged engine provides excellent performance while maintaining impressive fuel efficiency.</p>
+      </div>
+
+      <h3 class="vehicle-section-title">What's Included</h3>
+      <ul id="vehicle-features" class="vehicle-features">
+        <li>Apple CarPlay & Android Auto Integration</li>
+        <li>Honda Sensing Safety Suite (Collision Mitigation, Lane Keep Assist, Adaptive Cruise Control)</li>
+        <li>Power Moonroof</li>
+        <li>Dual-Zone Automatic Climate Control</li>
+        <li>8-Inch Touchscreen Display</li>
+        <li>Bluetooth Connectivity</li>
+        <li>Backup Camera with Dynamic Guidelines</li>
+        <li>LED Headlights</li>
+        <li>Push Button Start with Smart Entry</li>
+        <li>Power Driver's Seat with Lumbar Support</li>
+        <li>Heated Front Seats</li>
+        <li>17-Inch Alloy Wheels</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="vehicle-cta-section">
+    <div class="container">
+      <div class="vehicle-cta-box">
+        <h2 class="vehicle-cta-title">Interested? Let's Talk</h2>
+        <p class="vehicle-cta-text">Have questions or want to take it for a spin? Reach out—we're happy to help.</p>
+        <a 
+          href="index.html#contact" 
+          class="btn btn-primary vehicle-cta-button" 
+          data-vehicle-title="2020 Honda Accord EX"
+        >
+          Ask About This Vehicle
+        </a>
+        <div class="vehicle-contact-info">
+          <span>📞 Call us: <a href="tel:+12144518037">(214) 451-8037</a></span>
+          <span>✉️ Email: <a href="mailto:bellandsonauto@gmail.com">bellandsonauto@gmail.com</a></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-section">
+          <h3>B &amp; S Auto Sales</h3>
+          <p>Good cars, fair deals, and real people you can talk to. Serving East Texas.</p>
+        </div>
+        
+        <div class="footer-section">
+          <h3>Contact Info</h3>
+          <p>📍 East Texas (Mineola, TX)</p>
+          <p>📞 (214) 451-8037</p>
+          <p>✉️ bellandsonauto@gmail.com</p>
+        </div>
+        
+        <div class="footer-section">
+          <h3>Hours</h3>
+          <p>Monday - Friday: 9AM - 7PM</p>
+          <p>Saturday: 9AM - 6PM</p>
+          <p>Sunday: 10AM - 5PM</p>
+        </div>
+      </div>
+      
+      <div class="footer-bottom">
+        <p>&copy; 2025 B &amp; S Auto Sales. All rights reserved.</p>
+      </div>
+    </div>
+</footer>
+
+  <!-- Scripts -->
+  <script src="js/vehicle.js"></script>
+</body>
+</html>
